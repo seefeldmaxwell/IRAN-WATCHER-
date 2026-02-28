@@ -1,6 +1,6 @@
 // ============================================================================
-// AI SUMMARIZATION - Uses Cloudflare Workers AI (via AI Gateway)
-// Generates an intelligence-style briefing from collected news
+// AI SUMMARIZATION & CHAT - Uses Cloudflare Workers AI
+// Generates intelligence briefings and handles real-time analyst chat
 // ============================================================================
 
 export async function generateSummary(env, news) {
@@ -74,6 +74,73 @@ Keep it factual, concise, and intelligence-focused. Do not speculate beyond what
   } catch (err) {
     console.error('AI summarization error:', err);
     return getDefaultSummary();
+  }
+}
+
+// Handle real-time chat messages with AI analyst
+export async function handleChatMessage(env, message, history, newsData, currentSummary) {
+  try {
+    // Build context from current news
+    let newsContext = '';
+    if (newsData) {
+      const official = (newsData.official || []).slice(0, 10);
+      const unofficial = (newsData.unofficial || []).filter(i => !i.isMonitoring).slice(0, 5);
+
+      if (official.length > 0) {
+        newsContext += 'CURRENT NEWS HEADLINES:\n' +
+          official.map(i => `- [${i.source}] ${i.title}`).join('\n') + '\n\n';
+      }
+      if (unofficial.length > 0) {
+        newsContext += 'SOCIAL MEDIA POSTS:\n' +
+          unofficial.map(i => `- ${i.title}`).join('\n') + '\n\n';
+      }
+    }
+
+    if (currentSummary) {
+      newsContext += 'CURRENT INTELLIGENCE BRIEFING:\n' + currentSummary + '\n\n';
+    }
+
+    const systemPrompt = `You are an AI intelligence analyst embedded in the IRAN WATCHER monitoring system. You have access to real-time OSINT data about Iran-US relations and Middle East geopolitics.
+
+${newsContext}
+
+Rules:
+- Answer questions based on the current news data and briefing above
+- Be concise (2-4 sentences unless asked for detail)
+- Stay factual — cite specific headlines when possible
+- If asked about something not in the data, say so
+- Use intelligence analyst tone — professional, precise
+- You can discuss topics like: military posture, nuclear program, sanctions, diplomacy, proxy forces, maritime security, energy`;
+
+    // Build messages array with history
+    const messages = [
+      { role: 'system', content: systemPrompt },
+    ];
+
+    // Add conversation history (last few exchanges)
+    for (const entry of history.slice(-6)) {
+      if (entry.role === 'user' || entry.role === 'assistant') {
+        messages.push({ role: entry.role, content: entry.content });
+      }
+    }
+
+    // Add current message
+    messages.push({ role: 'user', content: message });
+
+    const response = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+      messages,
+      max_tokens: 512,
+      temperature: 0.4,
+    });
+
+    if (response && response.response) {
+      return response.response;
+    }
+
+    return 'Unable to generate response. Please try again.';
+  } catch (err) {
+    console.error('Chat AI error:', err);
+    return 'Analysis system temporarily unavailable. Please try again.';
   }
 }
 

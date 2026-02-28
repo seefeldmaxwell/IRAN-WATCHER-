@@ -1,5 +1,6 @@
 // ============================================================================
 // UI - Full HTML/CSS/JS frontend served inline from the Worker
+// Palantir Gotham-inspired intelligence dashboard
 // ============================================================================
 
 export function getHTML() {
@@ -8,577 +9,1241 @@ export function getHTML() {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>IRAN WATCHER - Intelligence Monitor</title>
+  <title>IRAN WATCHER // GOTHAM</title>
   <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
     :root {
-      --bg-primary: #0a0e17;
-      --bg-secondary: #111827;
-      --bg-card: #1a2235;
-      --bg-card-hover: #1f2a42;
-      --border: #2a3a5c;
-      --text-primary: #e2e8f0;
-      --text-secondary: #94a3b8;
-      --text-muted: #64748b;
-      --accent-red: #ef4444;
-      --accent-amber: #f59e0b;
-      --accent-green: #22c55e;
+      --bg-void: #04060b;
+      --bg-primary: #080c14;
+      --bg-secondary: #0c1220;
+      --bg-card: #0f172a;
+      --bg-card-hover: #131d35;
+      --bg-elevated: #162036;
+      --border-dim: #1a2744;
+      --border-mid: #243556;
+      --border-bright: #2d4a7c;
+      --border-glow: #3b82f6;
+      --text-primary: #d1ddf0;
+      --text-secondary: #7e93b5;
+      --text-muted: #4a5f82;
+      --text-label: #5b7099;
+      --accent-red: #e53e3e;
+      --accent-red-dim: rgba(229, 62, 62, 0.15);
+      --accent-amber: #d69e2e;
+      --accent-amber-dim: rgba(214, 158, 46, 0.12);
+      --accent-green: #38a169;
+      --accent-green-dim: rgba(56, 161, 105, 0.12);
       --accent-blue: #3b82f6;
+      --accent-blue-dim: rgba(59, 130, 246, 0.1);
+      --accent-cyan: #22d3ee;
+      --accent-cyan-dim: rgba(34, 211, 238, 0.08);
       --accent-purple: #8b5cf6;
-      --accent-cyan: #06b6d4;
-      --threat-low: #22c55e;
-      --threat-elevated: #f59e0b;
-      --threat-high: #f97316;
-      --threat-critical: #ef4444;
+      --accent-purple-dim: rgba(139, 92, 246, 0.1);
+      --threat-low: #38a169;
+      --threat-elevated: #d69e2e;
+      --threat-high: #dd6b20;
+      --threat-critical: #e53e3e;
+      --glow-blue: 0 0 20px rgba(59, 130, 246, 0.15);
+      --glow-cyan: 0 0 20px rgba(34, 211, 238, 0.1);
+      --glow-red: 0 0 20px rgba(229, 62, 62, 0.15);
+      --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+      --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
-      background: var(--bg-primary);
+      font-family: var(--font-mono);
+      background: var(--bg-void);
       color: var(--text-primary);
       min-height: 100vh;
       overflow-x: hidden;
     }
 
-    /* ---- Animated Background Grid ---- */
+    /* ======== PALANTIR GRID OVERLAY ======== */
     .bg-grid {
       position: fixed;
       inset: 0;
       background-image:
         linear-gradient(rgba(59, 130, 246, 0.03) 1px, transparent 1px),
         linear-gradient(90deg, rgba(59, 130, 246, 0.03) 1px, transparent 1px);
-      background-size: 50px 50px;
+      background-size: 40px 40px;
       pointer-events: none;
       z-index: 0;
     }
 
-    /* ---- Header ---- */
+    .bg-grid::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, rgba(59, 130, 246, 0.04) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    /* Scan line effect */
+    .scanline {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(34, 211, 238, 0.08), transparent);
+      animation: scanDown 8s linear infinite;
+      pointer-events: none;
+      z-index: 999;
+    }
+
+    @keyframes scanDown {
+      0% { top: -2px; }
+      100% { top: 100vh; }
+    }
+
+    /* ======== CLASSIFICATION BANNER ======== */
+    .classification-bar {
+      background: var(--accent-red);
+      color: white;
+      text-align: center;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 4px;
+      padding: 3px 0;
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      z-index: 100;
+      position: relative;
+    }
+
+    /* ======== HEADER / TOP BAR ======== */
     header {
       position: relative;
       z-index: 10;
-      background: linear-gradient(180deg, rgba(17, 24, 39, 0.95), rgba(10, 14, 23, 0.9));
-      border-bottom: 1px solid var(--border);
-      padding: 16px 24px;
+      background: linear-gradient(180deg, rgba(12, 18, 32, 0.98), rgba(8, 12, 20, 0.95));
+      border-bottom: 1px solid var(--border-dim);
+      padding: 0;
     }
 
-    .header-top {
+    .header-main {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      max-width: 1400px;
+      align-items: stretch;
+      max-width: 1600px;
       margin: 0 auto;
     }
 
-    .logo-section {
+    .logo-block {
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 14px;
+      padding: 14px 24px;
+      border-right: 1px solid var(--border-dim);
     }
 
-    .logo-icon {
-      width: 48px;
-      height: 48px;
+    .logo-hex {
+      width: 40px;
+      height: 40px;
       background: linear-gradient(135deg, var(--accent-red), #991b1b);
-      border-radius: 12px;
+      clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 24px;
-      box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+      font-size: 16px;
+      font-weight: 700;
+      color: white;
+      flex-shrink: 0;
     }
 
     .logo-text h1 {
-      font-size: 20px;
+      font-family: var(--font-mono);
+      font-size: 15px;
       font-weight: 700;
-      letter-spacing: 3px;
-      color: var(--accent-red);
+      letter-spacing: 4px;
+      color: var(--text-primary);
       text-transform: uppercase;
+      line-height: 1;
     }
 
-    .logo-text p {
-      font-size: 11px;
+    .logo-text .subtitle {
+      font-family: var(--font-mono);
+      font-size: 9px;
       color: var(--text-muted);
-      letter-spacing: 1px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-top: 4px;
     }
+
+    .header-stats {
+      display: flex;
+      align-items: center;
+      flex: 1;
+      gap: 0;
+    }
+
+    .stat-cell {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 10px 20px;
+      border-right: 1px solid var(--border-dim);
+      min-width: 100px;
+    }
+
+    .stat-label {
+      font-size: 8px;
+      color: var(--text-muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .stat-value {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--accent-cyan);
+      font-family: var(--font-mono);
+    }
+
+    .stat-value.threat-low { color: var(--threat-low); }
+    .stat-value.threat-elevated { color: var(--threat-elevated); }
+    .stat-value.threat-high { color: var(--threat-high); }
+    .stat-value.threat-critical { color: var(--threat-critical); }
 
     .header-controls {
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: 12px;
+      padding: 10px 24px;
+      margin-left: auto;
     }
 
-    .status-badge {
+    .status-indicator {
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 6px 14px;
-      background: rgba(34, 197, 94, 0.1);
-      border: 1px solid rgba(34, 197, 94, 0.3);
-      border-radius: 20px;
-      font-size: 11px;
+      gap: 6px;
+      padding: 5px 12px;
+      background: var(--accent-green-dim);
+      border: 1px solid rgba(56, 161, 105, 0.3);
+      font-size: 9px;
       color: var(--accent-green);
       text-transform: uppercase;
-      letter-spacing: 1px;
+      letter-spacing: 2px;
+      font-weight: 600;
     }
 
     .status-dot {
-      width: 8px;
-      height: 8px;
+      width: 6px;
+      height: 6px;
       background: var(--accent-green);
       border-radius: 50%;
-      animation: pulse 2s infinite;
+      animation: blink 2s infinite;
     }
 
-    @keyframes pulse {
+    @keyframes blink {
       0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
+      50% { opacity: 0.3; }
     }
 
-    .refresh-btn {
-      padding: 8px 16px;
+    .ctrl-btn {
+      padding: 6px 14px;
       background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
+      border: 1px solid var(--border-mid);
       color: var(--text-secondary);
-      font-family: inherit;
-      font-size: 12px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.15s;
       display: flex;
       align-items: center;
       gap: 6px;
     }
 
-    .refresh-btn:hover {
-      background: var(--bg-card-hover);
-      color: var(--text-primary);
-      border-color: var(--accent-blue);
+    .ctrl-btn:hover {
+      background: var(--bg-elevated);
+      color: var(--accent-cyan);
+      border-color: var(--accent-cyan);
+      box-shadow: var(--glow-cyan);
     }
 
-    .refresh-btn.loading {
-      opacity: 0.6;
-      pointer-events: none;
-    }
+    .ctrl-btn.loading { opacity: 0.5; pointer-events: none; }
 
-    .last-updated {
-      font-size: 11px;
+    .timestamp {
+      font-size: 9px;
       color: var(--text-muted);
+      letter-spacing: 1px;
     }
 
-    /* ---- Main Content ---- */
-    main {
+    /* ======== MAIN LAYOUT - 3 COLUMN ======== */
+    .dashboard {
       position: relative;
       z-index: 10;
-      max-width: 1400px;
+      max-width: 1600px;
       margin: 0 auto;
-      padding: 24px;
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      grid-template-rows: auto auto 1fr;
+      gap: 0;
+      min-height: calc(100vh - 120px);
     }
 
-    /* ---- AI Summary Panel ---- */
-    .summary-panel {
-      background: linear-gradient(135deg, var(--bg-card), rgba(26, 34, 53, 0.8));
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 28px;
-      margin-bottom: 28px;
+    /* ======== PANEL CHROME (Palantir-style) ======== */
+    .panel {
+      background: var(--bg-primary);
+      border: 1px solid var(--border-dim);
       position: relative;
       overflow: hidden;
     }
 
-    .summary-panel::before {
+    .panel::before {
       content: '';
       position: absolute;
       top: 0;
       left: 0;
       right: 0;
-      height: 3px;
-      background: linear-gradient(90deg, var(--accent-red), var(--accent-amber), var(--accent-red));
-      background-size: 200% 100%;
-      animation: shimmer 3s infinite;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border-bright), transparent);
     }
 
-    @keyframes shimmer {
-      0% { background-position: -200% 0; }
-      100% { background-position: 200% 0; }
-    }
-
-    .summary-header {
+    .panel-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 20px;
+      padding: 10px 16px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-dim);
+      min-height: 38px;
     }
 
-    .summary-title {
+    .panel-title {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-label);
+      letter-spacing: 2px;
+      text-transform: uppercase;
       display: flex;
       align-items: center;
-      gap: 10px;
-      font-size: 14px;
-      font-weight: 600;
-      color: var(--accent-amber);
-      text-transform: uppercase;
-      letter-spacing: 2px;
+      gap: 8px;
     }
 
-    .ai-badge {
-      padding: 3px 10px;
-      background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(59, 130, 246, 0.2));
-      border: 1px solid rgba(139, 92, 246, 0.3);
-      border-radius: 12px;
-      font-size: 10px;
+    .panel-title .dot {
+      width: 5px;
+      height: 5px;
+      background: var(--accent-cyan);
+      border-radius: 50%;
+    }
+
+    .panel-badge {
+      padding: 2px 8px;
+      background: var(--accent-purple-dim);
+      border: 1px solid rgba(139, 92, 246, 0.25);
+      font-size: 8px;
       color: var(--accent-purple);
-      letter-spacing: 1px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      font-weight: 600;
     }
 
-    .summary-content {
-      font-size: 13px;
-      line-height: 1.8;
+    /* ======== AI BRIEFING PANEL ======== */
+    .briefing-panel {
+      grid-column: 1 / -1;
+    }
+
+    .briefing-panel .panel-header {
+      background: linear-gradient(90deg, var(--bg-secondary), rgba(139, 92, 246, 0.05));
+    }
+
+    .briefing-content {
+      padding: 16px 20px;
+      font-size: 12px;
+      line-height: 1.9;
       color: var(--text-secondary);
       white-space: pre-wrap;
+      max-height: 320px;
+      overflow-y: auto;
     }
 
-    .summary-content strong {
-      color: var(--text-primary);
-    }
+    .briefing-content::-webkit-scrollbar { width: 4px; }
+    .briefing-content::-webkit-scrollbar-track { background: var(--bg-primary); }
+    .briefing-content::-webkit-scrollbar-thumb { background: var(--border-mid); }
 
-    .summary-loading {
+    .briefing-content strong { color: var(--accent-cyan); font-weight: 600; }
+
+    .briefing-loading {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 12px;
+      gap: 10px;
       padding: 40px;
       color: var(--text-muted);
-      font-size: 13px;
+      font-size: 11px;
     }
 
     .spinner {
-      width: 20px;
-      height: 20px;
-      border: 2px solid var(--border);
-      border-top-color: var(--accent-blue);
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--border-dim);
+      border-top-color: var(--accent-cyan);
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
 
-    @keyframes spin {
-      to { transform: rotate(360deg); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ======== TOPIC FILTER BAR ======== */
+    .topic-bar {
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-dim);
+      border-top: none;
+      padding: 0 16px;
+      gap: 4px;
+      overflow-x: auto;
     }
 
-    /* ---- Feed Tabs ---- */
+    .topic-bar::-webkit-scrollbar { height: 0; }
+
+    .topic-label {
+      font-size: 9px;
+      color: var(--text-muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 10px 12px 10px 0;
+      border-right: 1px solid var(--border-dim);
+      margin-right: 8px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .topic-btn {
+      padding: 6px 14px;
+      background: none;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .topic-btn:hover {
+      color: var(--text-secondary);
+      background: var(--accent-blue-dim);
+    }
+
+    .topic-btn.active {
+      color: var(--accent-cyan);
+      background: var(--accent-cyan-dim);
+      border-color: rgba(34, 211, 238, 0.2);
+    }
+
+    .topic-btn .count {
+      margin-left: 6px;
+      font-size: 9px;
+      opacity: 0.6;
+    }
+
+    /* ======== FEED TABS ======== */
     .feed-tabs {
       display: flex;
-      gap: 4px;
-      margin-bottom: 20px;
       background: var(--bg-secondary);
-      border-radius: 12px;
-      padding: 4px;
-      border: 1px solid var(--border);
+      border-bottom: 1px solid var(--border-dim);
     }
 
     .feed-tab {
       flex: 1;
-      padding: 12px 20px;
+      padding: 10px 16px;
       background: none;
       border: none;
-      border-radius: 8px;
+      border-bottom: 2px solid transparent;
       color: var(--text-muted);
-      font-family: inherit;
-      font-size: 12px;
-      font-weight: 600;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 500;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.15s;
       text-transform: uppercase;
-      letter-spacing: 1px;
+      letter-spacing: 1.5px;
       display: flex;
       align-items: center;
       justify-content: center;
       gap: 8px;
     }
 
-    .feed-tab:hover {
-      color: var(--text-secondary);
-      background: rgba(255,255,255,0.03);
-    }
+    .feed-tab:hover { color: var(--text-secondary); background: rgba(255,255,255,0.02); }
 
     .feed-tab.active {
-      background: var(--bg-card);
-      color: var(--text-primary);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      color: var(--accent-cyan);
+      border-bottom-color: var(--accent-cyan);
+      background: rgba(34, 211, 238, 0.03);
     }
 
     .tab-count {
-      padding: 2px 8px;
-      background: rgba(59, 130, 246, 0.2);
-      border-radius: 10px;
-      font-size: 10px;
+      padding: 1px 6px;
+      background: var(--accent-blue-dim);
+      font-size: 9px;
       color: var(--accent-blue);
     }
 
     .feed-tab.active .tab-count {
-      background: rgba(59, 130, 246, 0.3);
+      background: var(--accent-cyan-dim);
       color: var(--accent-cyan);
     }
 
-    /* ---- News Feed ---- */
-    .news-feed {
-      display: grid;
-      gap: 12px;
+    /* ======== NEWS FEED ======== */
+    .feed-area {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
 
+    .news-feed {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0;
+    }
+
+    .news-feed::-webkit-scrollbar { width: 4px; }
+    .news-feed::-webkit-scrollbar-track { background: var(--bg-primary); }
+    .news-feed::-webkit-scrollbar-thumb { background: var(--border-mid); }
+
     .news-card {
-      background: var(--bg-card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 20px;
-      transition: all 0.2s;
+      display: block;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border-dim);
+      transition: all 0.12s;
       cursor: pointer;
       text-decoration: none;
-      display: block;
       color: inherit;
+      position: relative;
+    }
+
+    .news-card::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--accent-blue);
+      opacity: 0;
+      transition: opacity 0.15s;
     }
 
     .news-card:hover {
       background: var(--bg-card-hover);
-      border-color: var(--accent-blue);
-      transform: translateY(-1px);
-      box-shadow: 0 4px 16px rgba(0,0,0,0.3);
     }
 
-    .news-card.unofficial {
-      border-left: 3px solid var(--accent-purple);
-    }
+    .news-card:hover::before { opacity: 1; }
 
-    .news-card.official {
-      border-left: 3px solid var(--accent-blue);
-    }
+    .news-card.official::before { background: var(--accent-blue); opacity: 0.6; }
+    .news-card.unofficial::before { background: var(--accent-purple); opacity: 0.6; }
+    .news-card.monitoring::before { background: var(--accent-amber); opacity: 0.4; }
+    .news-card.monitoring { opacity: 0.6; }
 
-    .news-card.monitoring {
-      border-left: 3px solid var(--accent-amber);
-      opacity: 0.7;
-    }
-
-    .card-header {
+    .card-meta {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 10px;
+      margin-bottom: 6px;
     }
 
     .source-info {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
     }
 
     .source-icon {
-      width: 28px;
-      height: 28px;
-      border-radius: 6px;
+      width: 20px;
+      height: 20px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 12px;
+      font-size: 8px;
       font-weight: 700;
       color: white;
+      flex-shrink: 0;
     }
 
-    .source-icon.reuters { background: #ff8000; }
-    .source-icon.bbc { background: #bb1919; }
-    .source-icon.aljazeera { background: #d2a44e; }
-    .source-icon.ap { background: #c41230; }
+    .source-icon.reuters { background: #e87400; }
+    .source-icon.bbc { background: #a11; }
+    .source-icon.aljazeera { background: #b8922f; }
+    .source-icon.ap { background: #b01030; }
     .source-icon.guardian { background: #052962; }
-    .source-icon.google { background: #4285f4; }
-    .source-icon.x { background: #000; border: 1px solid #333; }
+    .source-icon.google { background: #3367d6; }
+    .source-icon.x { background: #111; border: 1px solid #333; }
 
     .source-name {
-      font-size: 11px;
+      font-size: 9px;
       color: var(--text-muted);
       text-transform: uppercase;
-      letter-spacing: 0.5px;
+      letter-spacing: 1px;
     }
 
     .card-time {
-      font-size: 11px;
+      font-size: 9px;
       color: var(--text-muted);
+      font-family: var(--font-mono);
     }
 
     .card-title {
-      font-size: 14px;
-      font-weight: 600;
+      font-size: 12px;
+      font-weight: 500;
       color: var(--text-primary);
       line-height: 1.5;
-      margin-bottom: 8px;
+      margin-bottom: 4px;
+      font-family: var(--font-sans);
     }
 
-    .card-description {
-      font-size: 12px;
-      color: var(--text-secondary);
-      line-height: 1.6;
+    .card-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      font-family: var(--font-sans);
     }
 
     .card-tags {
       display: flex;
-      gap: 6px;
-      margin-top: 12px;
+      gap: 4px;
+      margin-top: 8px;
       flex-wrap: wrap;
     }
 
     .tag {
-      padding: 3px 10px;
-      background: rgba(59, 130, 246, 0.1);
-      border: 1px solid rgba(59, 130, 246, 0.2);
-      border-radius: 12px;
-      font-size: 10px;
+      padding: 2px 8px;
+      font-size: 8px;
+      font-family: var(--font-mono);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      font-weight: 600;
+      background: var(--accent-blue-dim);
       color: var(--accent-blue);
+      border: 1px solid rgba(59, 130, 246, 0.15);
     }
 
     .tag.unofficial-tag {
-      background: rgba(139, 92, 246, 0.1);
-      border-color: rgba(139, 92, 246, 0.2);
+      background: var(--accent-purple-dim);
       color: var(--accent-purple);
+      border-color: rgba(139, 92, 246, 0.15);
     }
 
     .tag.monitoring-tag {
-      background: rgba(245, 158, 11, 0.1);
-      border-color: rgba(245, 158, 11, 0.2);
+      background: var(--accent-amber-dim);
       color: var(--accent-amber);
+      border-color: rgba(214, 158, 46, 0.15);
     }
 
-    /* ---- Empty State ---- */
+    .tag.topic-tag {
+      background: var(--accent-cyan-dim);
+      color: var(--accent-cyan);
+      border-color: rgba(34, 211, 238, 0.15);
+    }
+
     .empty-state {
       text-align: center;
       padding: 60px 20px;
       color: var(--text-muted);
     }
 
-    .empty-state .icon {
-      font-size: 48px;
-      margin-bottom: 16px;
+    .empty-state h3 { font-size: 13px; color: var(--text-secondary); margin-bottom: 8px; }
+    .empty-state p { font-size: 11px; }
+
+    /* ======== RIGHT SIDEBAR ======== */
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      border-left: 1px solid var(--border-dim);
+      overflow: hidden;
     }
 
-    .empty-state h3 {
-      font-size: 16px;
-      color: var(--text-secondary);
-      margin-bottom: 8px;
+    /* ======== X/TWITTER EMBED PANEL ======== */
+    .x-feed-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-height: 300px;
     }
 
-    .empty-state p {
-      font-size: 13px;
+    .x-feed-content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0;
     }
 
-    /* ---- Footer ---- */
-    footer {
-      position: relative;
-      z-index: 10;
-      text-align: center;
-      padding: 24px;
+    .x-feed-content::-webkit-scrollbar { width: 4px; }
+    .x-feed-content::-webkit-scrollbar-track { background: var(--bg-primary); }
+    .x-feed-content::-webkit-scrollbar-thumb { background: var(--border-mid); }
+
+    .x-search-tabs {
+      display: flex;
+      overflow-x: auto;
+      background: rgba(0,0,0,0.3);
+      border-bottom: 1px solid var(--border-dim);
+    }
+
+    .x-search-tabs::-webkit-scrollbar { height: 0; }
+
+    .x-search-tab {
+      padding: 7px 12px;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
       color: var(--text-muted);
-      font-size: 11px;
-      border-top: 1px solid var(--border);
-      margin-top: 40px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
     }
 
-    footer a {
-      color: var(--accent-blue);
+    .x-search-tab:hover { color: var(--text-secondary); }
+    .x-search-tab.active { color: #1d9bf0; border-bottom-color: #1d9bf0; }
+
+    .x-embed-frame {
+      width: 100%;
+      border: none;
+      flex: 1;
+      min-height: 400px;
+      background: var(--bg-primary);
+    }
+
+    .x-feed-items {
+      padding: 0;
+    }
+
+    .x-post {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border-dim);
+      font-size: 11px;
+      line-height: 1.5;
+      color: var(--text-secondary);
+      transition: background 0.12s;
+      cursor: pointer;
+      display: block;
       text-decoration: none;
     }
 
-    /* ---- Responsive ---- */
-    @media (max-width: 768px) {
-      header { padding: 12px 16px; }
-      .header-top { flex-direction: column; gap: 12px; }
-      main { padding: 16px; }
-      .summary-panel { padding: 20px; }
-      .feed-tabs { flex-direction: column; }
-      .feed-tab { padding: 10px; }
-      .logo-text h1 { font-size: 16px; }
+    .x-post:hover { background: var(--bg-card-hover); }
+
+    .x-post-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
     }
+
+    .x-post-source {
+      font-size: 9px;
+      color: #1d9bf0;
+      font-weight: 600;
+    }
+
+    .x-post-time {
+      font-size: 9px;
+      color: var(--text-muted);
+      margin-left: auto;
+    }
+
+    .x-post-text {
+      font-family: var(--font-sans);
+      color: var(--text-primary);
+    }
+
+    .x-post-query {
+      display: inline-block;
+      margin-top: 6px;
+      font-size: 8px;
+      padding: 1px 6px;
+      background: rgba(29, 155, 240, 0.1);
+      color: #1d9bf0;
+      border: 1px solid rgba(29, 155, 240, 0.2);
+      letter-spacing: 1px;
+      text-transform: uppercase;
+    }
+
+    /* ======== AI CHAT PANEL ======== */
+    .chat-panel {
+      display: flex;
+      flex-direction: column;
+      border-top: 1px solid var(--border-dim);
+      min-height: 280px;
+      max-height: 400px;
+    }
+
+    .chat-panel .panel-header {
+      cursor: pointer;
+    }
+
+    .chat-panel .panel-header:hover {
+      background: var(--bg-elevated);
+    }
+
+    .chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .chat-messages::-webkit-scrollbar { width: 4px; }
+    .chat-messages::-webkit-scrollbar-track { background: var(--bg-primary); }
+    .chat-messages::-webkit-scrollbar-thumb { background: var(--border-mid); }
+
+    .chat-msg {
+      max-width: 90%;
+      padding: 8px 12px;
+      font-size: 11px;
+      line-height: 1.6;
+      font-family: var(--font-sans);
+    }
+
+    .chat-msg.user {
+      align-self: flex-end;
+      background: var(--accent-blue-dim);
+      border: 1px solid rgba(59, 130, 246, 0.2);
+      color: var(--text-primary);
+    }
+
+    .chat-msg.ai {
+      align-self: flex-start;
+      background: var(--bg-card);
+      border: 1px solid var(--border-dim);
+      color: var(--text-secondary);
+    }
+
+    .chat-msg.ai strong { color: var(--accent-cyan); }
+
+    .chat-msg.system {
+      align-self: center;
+      color: var(--text-muted);
+      font-size: 10px;
+      font-family: var(--font-mono);
+      text-align: center;
+      padding: 4px;
+    }
+
+    .chat-typing {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 12px;
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+
+    .chat-typing .dots span {
+      display: inline-block;
+      width: 4px;
+      height: 4px;
+      background: var(--accent-cyan);
+      border-radius: 50%;
+      animation: typingDot 1.4s infinite;
+      margin: 0 1px;
+    }
+
+    .chat-typing .dots span:nth-child(2) { animation-delay: 0.2s; }
+    .chat-typing .dots span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes typingDot {
+      0%, 60%, 100% { opacity: 0.2; transform: translateY(0); }
+      30% { opacity: 1; transform: translateY(-3px); }
+    }
+
+    .chat-input-area {
+      display: flex;
+      border-top: 1px solid var(--border-dim);
+      background: var(--bg-secondary);
+    }
+
+    .chat-input {
+      flex: 1;
+      padding: 10px 14px;
+      background: none;
+      border: none;
+      color: var(--text-primary);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      outline: none;
+    }
+
+    .chat-input::placeholder { color: var(--text-muted); }
+
+    .chat-send {
+      padding: 10px 16px;
+      background: none;
+      border: none;
+      border-left: 1px solid var(--border-dim);
+      color: var(--accent-cyan);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      transition: all 0.15s;
+    }
+
+    .chat-send:hover { background: var(--accent-cyan-dim); }
+    .chat-send:disabled { opacity: 0.3; cursor: default; }
+
+    /* ======== FOOTER ======== */
+    .footer-bar {
+      grid-column: 1 / -1;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border-dim);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 9px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+      z-index: 10;
+      position: relative;
+    }
+
+    .footer-bar a { color: var(--accent-blue); text-decoration: none; }
+    .footer-bar a:hover { color: var(--accent-cyan); }
+
+    /* ======== RESPONSIVE ======== */
+    @media (max-width: 1024px) {
+      .dashboard {
+        grid-template-columns: 1fr;
+      }
+      .sidebar {
+        border-left: none;
+        border-top: 1px solid var(--border-dim);
+        max-height: 500px;
+      }
+      .header-stats { display: none; }
+    }
+
+    @media (max-width: 768px) {
+      .header-main { flex-direction: column; }
+      .logo-block { border-right: none; border-bottom: 1px solid var(--border-dim); }
+      .header-controls { justify-content: center; flex-wrap: wrap; }
+      .topic-bar { padding: 0 8px; }
+    }
+
+    /* ======== TLDR BANNER ======== */
+    .tldr-banner {
+      grid-column: 1 / -1;
+      background: linear-gradient(90deg, var(--bg-secondary), rgba(34, 211, 238, 0.04), var(--bg-secondary));
+      border: 1px solid var(--border-dim);
+      border-top: none;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .tldr-label {
+      padding: 3px 10px;
+      background: var(--accent-cyan-dim);
+      border: 1px solid rgba(34, 211, 238, 0.2);
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      flex-shrink: 0;
+      font-family: var(--font-mono);
+    }
+
+    .tldr-text {
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-family: var(--font-sans);
+      line-height: 1.5;
+      flex: 1;
+    }
+
+    .tldr-text strong { color: var(--accent-cyan); }
+
+    /* ======== LIVE TICKER BANNER ======== */
+    .ticker-banner {
+      grid-column: 1 / -1;
+      background: var(--accent-red-dim);
+      border: 1px solid rgba(229, 62, 62, 0.2);
+      border-top: none;
+      overflow: hidden;
+      position: relative;
+      height: 28px;
+    }
+
+    .ticker-label {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      background: var(--accent-red);
+      color: white;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      z-index: 2;
+      font-family: var(--font-mono);
+    }
+
+    .ticker-label .blink-dot {
+      width: 6px;
+      height: 6px;
+      background: white;
+      border-radius: 50%;
+      margin-right: 8px;
+      animation: blink 1s infinite;
+    }
+
+    .ticker-track {
+      display: flex;
+      align-items: center;
+      height: 100%;
+      padding-left: 120px;
+      animation: tickerScroll var(--ticker-duration, 30s) linear infinite;
+      white-space: nowrap;
+    }
+
+    .ticker-item {
+      font-size: 11px;
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      padding: 0 24px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .ticker-item .sep {
+      color: var(--accent-red);
+      font-weight: 700;
+    }
+
+    .ticker-item .ticker-source {
+      font-size: 9px;
+      color: var(--accent-amber);
+      font-family: var(--font-mono);
+      letter-spacing: 1px;
+    }
+
+    @keyframes tickerScroll {
+      0% { transform: translateX(0); }
+      100% { transform: translateX(-50%); }
+    }
+
+    /* ======== SCROLLBAR GLOBAL ======== */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg-void); }
+    ::-webkit-scrollbar-thumb { background: var(--border-dim); }
+    ::-webkit-scrollbar-thumb:hover { background: var(--border-mid); }
   </style>
 </head>
 <body>
   <div class="bg-grid"></div>
+  <div class="scanline"></div>
+
+  <div class="classification-bar">UNCLASSIFIED // OSINT AGGREGATION // FOR INFORMATIONAL PURPOSES ONLY</div>
 
   <header>
-    <div class="header-top">
-      <div class="logo-section">
-        <div class="logo-icon">&#9432;</div>
+    <div class="header-main">
+      <div class="logo-block">
+        <div class="logo-hex">IW</div>
         <div class="logo-text">
           <h1>IRAN WATCHER</h1>
-          <p>Real-Time Intelligence Monitor &mdash; Iran-US Conflict Tracking</p>
+          <div class="subtitle">GOTHAM // OSINT MONITOR</div>
         </div>
       </div>
-      <div class="header-controls">
-        <div class="status-badge">
-          <span class="status-dot"></span>
-          LIVE MONITORING
+
+      <div class="header-stats">
+        <div class="stat-cell">
+          <span class="stat-label">Status</span>
+          <span class="stat-value" id="threatLevel">ACTIVE</span>
         </div>
-        <button class="refresh-btn" onclick="refreshData()">
-          &#8635; Refresh
-        </button>
-        <span class="last-updated" id="lastUpdated">Loading...</span>
+        <div class="stat-cell">
+          <span class="stat-label">Sources</span>
+          <span class="stat-value" id="sourceCount">0</span>
+        </div>
+        <div class="stat-cell">
+          <span class="stat-label">Items</span>
+          <span class="stat-value" id="itemCount">0</span>
+        </div>
+        <div class="stat-cell">
+          <span class="stat-label">Updated</span>
+          <span class="stat-value" id="lastUpdatedStat">--:--</span>
+        </div>
+      </div>
+
+      <div class="header-controls">
+        <div class="status-indicator">
+          <span class="status-dot"></span>
+          LIVE
+        </div>
+        <button class="ctrl-btn" onclick="refreshData()">&#8635; REFRESH</button>
+        <span class="timestamp" id="lastUpdated">AWAITING DATA...</span>
       </div>
     </div>
   </header>
 
-  <main>
-    <!-- AI Summary Panel -->
-    <section class="summary-panel" id="summaryPanel">
-      <div class="summary-header">
-        <div class="summary-title">
-          &#9733; Intelligence Briefing
-        </div>
-        <span class="ai-badge">CLOUDFLARE AI</span>
+  <div class="dashboard">
+    <!-- AI BRIEFING -->
+    <div class="panel briefing-panel">
+      <div class="panel-header">
+        <div class="panel-title"><span class="dot"></span> INTELLIGENCE BRIEFING</div>
+        <span class="panel-badge">WORKERS AI</span>
       </div>
-      <div class="summary-content" id="summaryContent">
-        <div class="summary-loading">
+      <div class="briefing-content" id="summaryContent">
+        <div class="briefing-loading">
           <div class="spinner"></div>
           Generating AI intelligence briefing...
         </div>
       </div>
-    </section>
-
-    <!-- Feed Tabs -->
-    <div class="feed-tabs">
-      <button class="feed-tab active" data-tab="all" onclick="switchTab('all')">
-        All Updates <span class="tab-count" id="countAll">0</span>
-      </button>
-      <button class="feed-tab" data-tab="official" onclick="switchTab('official')">
-        Official Channels <span class="tab-count" id="countOfficial">0</span>
-      </button>
-      <button class="feed-tab" data-tab="unofficial" onclick="switchTab('unofficial')">
-        X / Unofficial <span class="tab-count" id="countUnofficial">0</span>
-      </button>
     </div>
 
-    <!-- News Feed -->
-    <div class="news-feed" id="newsFeed">
-      <div class="summary-loading">
-        <div class="spinner"></div>
-        Loading intelligence feeds...
+    <!-- TLDR BANNER -->
+    <div class="tldr-banner" id="tldrBanner">
+      <span class="tldr-label">TL;DR</span>
+      <div class="tldr-text" id="tldrText">
+        <strong>IRAN WATCHER</strong> is a real-time OSINT intelligence dashboard tracking Iran-US conflict developments. It aggregates official news (Reuters, BBC, Al Jazeera, AP, Guardian), Google News, and X/Twitter feeds, then uses AI to generate threat assessments and intelligence briefings. Filter by topic, chat with the AI analyst, and monitor live X feeds &mdash; all powered by Cloudflare Workers at the edge.
       </div>
     </div>
-  </main>
 
-  <footer>
-    Powered by <a href="https://workers.cloudflare.com" target="_blank">Cloudflare Workers</a>
-    &bull; AI by <a href="https://ai.cloudflare.com" target="_blank">Workers AI</a>
-    &bull; Data from official news agencies &amp; X/Twitter
-    <br><br>
-    This tool aggregates publicly available news for informational purposes only.
-    It does not represent the views of any government or organization.
-  </footer>
+    <!-- LIVE TICKER -->
+    <div class="ticker-banner" id="tickerBanner">
+      <div class="ticker-label"><span class="blink-dot"></span>BREAKING</div>
+      <div class="ticker-track" id="tickerTrack">
+        <span class="ticker-item">Awaiting real-time updates...</span>
+      </div>
+    </div>
+
+    <!-- TOPIC FILTER BAR -->
+    <div class="topic-bar" id="topicBar">
+      <span class="topic-label">Filter</span>
+      <button class="topic-btn active" data-topic="all" onclick="filterTopic('all')">ALL</button>
+      <button class="topic-btn" data-topic="military" onclick="filterTopic('military')">MILITARY</button>
+      <button class="topic-btn" data-topic="nuclear" onclick="filterTopic('nuclear')">NUCLEAR</button>
+      <button class="topic-btn" data-topic="diplomacy" onclick="filterTopic('diplomacy')">DIPLOMACY</button>
+      <button class="topic-btn" data-topic="sanctions" onclick="filterTopic('sanctions')">SANCTIONS</button>
+      <button class="topic-btn" data-topic="proxy" onclick="filterTopic('proxy')">PROXY FORCES</button>
+      <button class="topic-btn" data-topic="maritime" onclick="filterTopic('maritime')">MARITIME</button>
+      <button class="topic-btn" data-topic="energy" onclick="filterTopic('energy')">ENERGY</button>
+    </div>
+
+    <!-- LEFT: NEWS FEED -->
+    <div class="panel feed-area">
+      <div class="feed-tabs">
+        <button class="feed-tab active" data-tab="all" onclick="switchTab('all')">
+          ALL <span class="tab-count" id="countAll">0</span>
+        </button>
+        <button class="feed-tab" data-tab="official" onclick="switchTab('official')">
+          OFFICIAL <span class="tab-count" id="countOfficial">0</span>
+        </button>
+        <button class="feed-tab" data-tab="unofficial" onclick="switchTab('unofficial')">
+          SIGINT / X <span class="tab-count" id="countUnofficial">0</span>
+        </button>
+      </div>
+      <div class="news-feed" id="newsFeed">
+        <div class="briefing-loading">
+          <div class="spinner"></div>
+          Loading intelligence feeds...
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT SIDEBAR -->
+    <div class="sidebar">
+      <!-- X/Twitter Feed -->
+      <div class="panel x-feed-panel">
+        <div class="panel-header">
+          <div class="panel-title"><span class="dot" style="background:#1d9bf0"></span> X / TWITTER FEED</div>
+          <span class="panel-badge" style="background:rgba(29,155,240,0.1);color:#1d9bf0;border-color:rgba(29,155,240,0.2)">LIVE</span>
+        </div>
+        <div class="x-search-tabs" id="xSearchTabs"></div>
+        <div class="x-feed-content" id="xFeedContent">
+          <div class="briefing-loading">
+            <div class="spinner"></div>
+            Loading X feed...
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Chat -->
+      <div class="panel chat-panel" id="chatPanel">
+        <div class="panel-header" onclick="toggleChat()">
+          <div class="panel-title"><span class="dot" style="background:var(--accent-purple)"></span> AI ANALYST CHAT</div>
+          <span class="panel-badge">ASK AI</span>
+        </div>
+        <div class="chat-messages" id="chatMessages">
+          <div class="chat-msg system">Ask questions about the intelligence briefing or current events.</div>
+        </div>
+        <div class="chat-input-area">
+          <input type="text" class="chat-input" id="chatInput" placeholder="Ask the AI analyst..." onkeydown="if(event.key==='Enter')sendChat()" />
+          <button class="chat-send" id="chatSend" onclick="sendChat()">SEND</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="footer-bar">
+      <span>IRAN WATCHER v2.0 // <a href="https://workers.cloudflare.com" target="_blank" rel="noopener noreferrer">CLOUDFLARE WORKERS</a> + <a href="https://ai.cloudflare.com" target="_blank" rel="noopener noreferrer">WORKERS AI</a></span>
+      <span>OSINT ONLY // NOT INTELLIGENCE PRODUCT</span>
+    </div>
+  </div>
 
   <script>
+    // ========================================================================
+    // STATE
+    // ========================================================================
     let newsData = { official: [], unofficial: [] };
     let currentTab = 'all';
+    let currentTopic = 'all';
+    let chatHistory = [];
+    let currentXQuery = '';
 
-    // ---- Load News on Page Load ----
-    document.addEventListener('DOMContentLoaded', loadNews);
+    const TOPIC_KEYWORDS = {
+      military: ['military', 'irgc', 'revolutionary guard', 'missile', 'drone', 'strike', 'attack', 'air defense', 'ballistic', 'cruise missile', 'quds force', 'armed forces', 'army', 'navy', 'aircraft', 'weapon'],
+      nuclear: ['nuclear', 'enrichment', 'uranium', 'centrifuge', 'jcpoa', 'nuclear deal', 'iaea', 'atomic energy', 'plutonium', 'reactor', 'fordow', 'natanz'],
+      diplomacy: ['diplomatic', 'negotiation', 'talks', 'ambassador', 'un security', 'united nations', 'foreign minister', 'summit', 'treaty', 'accord', 'dialogue', 'envoy'],
+      sanctions: ['sanctions', 'embargo', 'treasury', 'ofac', 'blocked', 'designated', 'restricted', 'economic pressure', 'trade ban'],
+      proxy: ['hezbollah', 'houthi', 'proxy', 'militia', 'axis of resistance', 'pmu', 'hashd', 'kata\\'ib', 'islamic jihad', 'hamas'],
+      maritime: ['strait of hormuz', 'persian gulf', 'oil tanker', 'shipping lane', 'red sea', 'naval', 'maritime', 'vessel', 'cargo ship', 'piracy', 'seizure'],
+      energy: ['oil', 'petroleum', 'opec', 'crude', 'barrel', 'pipeline', 'natural gas', 'energy', 'refinery', 'export'],
+    };
 
-    // Auto-refresh every 5 minutes
+    const X_SEARCHES = [
+      'iran US conflict',
+      'IRGC attack',
+      'iran retaliation',
+      'iran nuclear',
+      'houthi red sea',
+      'hezbollah iran',
+    ];
+
+    // ========================================================================
+    // INIT
+    // ========================================================================
+    document.addEventListener('DOMContentLoaded', () => {
+      loadNews();
+      buildXSearchTabs();
+    });
+
     setInterval(loadNews, 5 * 60 * 1000);
 
+    // ========================================================================
+    // NEWS LOADING
+    // ========================================================================
     async function loadNews() {
       try {
         const res = await fetch('/api/news');
@@ -588,21 +1253,24 @@ export function getHTML() {
           newsData = data.news;
           renderSummary(data.summary);
           renderFeed();
+          renderXFeed();
+          renderTicker();
+          updateTldr(data.summary);
+          updateStats(data);
           updateTimestamp(data.lastUpdated);
         } else {
-          showError('Failed to load news: ' + (data.error || 'Unknown error'));
+          showError('Failed to load: ' + (data.error || 'Unknown'));
         }
       } catch (err) {
-        showError('Network error — retrying in 30 seconds...');
+        showError('Network error');
         setTimeout(loadNews, 30000);
       }
     }
 
     async function refreshData() {
-      const btn = document.querySelector('.refresh-btn');
+      const btn = document.querySelector('.ctrl-btn');
       btn.classList.add('loading');
-      btn.innerHTML = '<div class="spinner"></div> Refreshing...';
-
+      btn.textContent = 'REFRESHING...';
       try {
         await fetch('/api/refresh');
         await loadNews();
@@ -610,33 +1278,74 @@ export function getHTML() {
         showError('Refresh failed');
       } finally {
         btn.classList.remove('loading');
-        btn.innerHTML = '&#8635; Refresh';
+        btn.innerHTML = '&#8635; REFRESH';
       }
     }
 
+    // ========================================================================
+    // STATS HEADER
+    // ========================================================================
+    function updateStats(data) {
+      const all = [...(newsData.official || []), ...(newsData.unofficial || [])];
+      const sources = new Set(all.map(i => i.source));
+      document.getElementById('sourceCount').textContent = sources.size;
+      document.getElementById('itemCount').textContent = all.length;
+
+      // Extract threat level from summary
+      const summary = data.summary || '';
+      const el = document.getElementById('threatLevel');
+      if (summary.includes('CRITICAL')) { el.textContent = 'CRITICAL'; el.className = 'stat-value threat-critical'; }
+      else if (summary.includes('HIGH')) { el.textContent = 'HIGH'; el.className = 'stat-value threat-high'; }
+      else if (summary.includes('ELEVATED')) { el.textContent = 'ELEVATED'; el.className = 'stat-value threat-elevated'; }
+      else if (summary.includes('LOW')) { el.textContent = 'LOW'; el.className = 'stat-value threat-low'; }
+      else { el.textContent = 'ACTIVE'; el.className = 'stat-value'; }
+    }
+
+    // ========================================================================
+    // AI BRIEFING
+    // ========================================================================
     function renderSummary(summary) {
       const el = document.getElementById('summaryContent');
       if (!summary) {
-        el.innerHTML = '<div class="summary-loading"><div class="spinner"></div>Generating AI intelligence briefing...</div>';
+        el.innerHTML = '<div class="briefing-loading"><div class="spinner"></div>Generating AI intelligence briefing...</div>';
         return;
       }
 
-      // Convert markdown bold to HTML
       let html = summary
         .replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>')
         .replace(/^- /gm, '&bull; ')
         .replace(/\\n/g, '<br>');
 
-      // Highlight threat levels
       html = html.replace(/CRITICAL/g, '<span style="color:var(--threat-critical);font-weight:700">CRITICAL</span>');
       html = html.replace(/HIGH/g, '<span style="color:var(--threat-high);font-weight:700">HIGH</span>');
       html = html.replace(/ELEVATED/g, '<span style="color:var(--threat-elevated);font-weight:700">ELEVATED</span>');
       html = html.replace(/LOW/g, '<span style="color:var(--threat-low);font-weight:700">LOW</span>');
-      html = html.replace(/MONITORING/g, '<span style="color:var(--accent-blue);font-weight:700">MONITORING</span>');
+      html = html.replace(/MONITORING/g, '<span style="color:var(--accent-cyan);font-weight:700">MONITORING</span>');
 
       el.innerHTML = html;
     }
 
+    // ========================================================================
+    // TOPIC FILTERING
+    // ========================================================================
+    function matchesTopic(item, topic) {
+      if (topic === 'all') return true;
+      const keywords = TOPIC_KEYWORDS[topic] || [];
+      const text = ((item.title || '') + ' ' + (item.description || '')).toLowerCase();
+      return keywords.some(k => text.includes(k));
+    }
+
+    function filterTopic(topic) {
+      currentTopic = topic;
+      document.querySelectorAll('.topic-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.topic === topic);
+      });
+      renderFeed();
+    }
+
+    // ========================================================================
+    // NEWS FEED RENDERING
+    // ========================================================================
     function renderFeed() {
       const feed = document.getElementById('newsFeed');
       let items = [];
@@ -648,24 +1357,19 @@ export function getHTML() {
         items = items.concat(newsData.unofficial || []);
       }
 
-      // Sort by date
+      // Apply topic filter
+      items = items.filter(item => matchesTopic(item, currentTopic));
+
       items.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-      // Update counts
-      document.getElementById('countAll').textContent =
-        (newsData.official || []).length + (newsData.unofficial || []).length;
-      document.getElementById('countOfficial').textContent =
-        (newsData.official || []).length;
-      document.getElementById('countUnofficial').textContent =
-        (newsData.unofficial || []).length;
+      // Update counts (unfiltered)
+      const allItems = [...(newsData.official || []), ...(newsData.unofficial || [])];
+      document.getElementById('countAll').textContent = allItems.filter(i => matchesTopic(i, currentTopic)).length;
+      document.getElementById('countOfficial').textContent = (newsData.official || []).filter(i => matchesTopic(i, currentTopic)).length;
+      document.getElementById('countUnofficial').textContent = (newsData.unofficial || []).filter(i => matchesTopic(i, currentTopic)).length;
 
       if (items.length === 0) {
-        feed.innerHTML = \`
-          <div class="empty-state">
-            <div class="icon">&#128225;</div>
-            <h3>No intelligence items found</h3>
-            <p>Monitoring channels for Iran-US conflict updates. Items will appear as they are detected.</p>
-          </div>\`;
+        feed.innerHTML = '<div class="empty-state"><h3>NO ITEMS MATCHING FILTER</h3><p>Adjust topic or tab filters to view intelligence items.</p></div>';
         return;
       }
 
@@ -673,12 +1377,14 @@ export function getHTML() {
         const iconLabel = getIconLabel(item.icon);
         const cardClass = item.isMonitoring ? 'monitoring' : item.category;
         const tagClass = item.isMonitoring ? 'monitoring-tag' : item.category === 'unofficial' ? 'unofficial-tag' : '';
-        const tagLabel = item.isMonitoring ? 'MONITORING' : item.category === 'unofficial' ? 'UNOFFICIAL' : 'OFFICIAL';
+        const tagLabel = item.isMonitoring ? 'MONITORING' : item.category === 'unofficial' ? 'SIGINT' : 'OSINT';
+
+        // Detect topic for tag
+        const topicTag = detectTopic(item);
 
         return \`
-          <a href="\${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer"
-             class="news-card \${cardClass}">
-            <div class="card-header">
+          <a href="\${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer" class="news-card \${cardClass}">
+            <div class="card-meta">
               <div class="source-info">
                 <div class="source-icon \${item.icon || ''}">\${iconLabel}</div>
                 <span class="source-name">\${escapeHtml(item.source)}</span>
@@ -686,13 +1392,24 @@ export function getHTML() {
               <span class="card-time">\${formatTime(item.date)}</span>
             </div>
             <div class="card-title">\${escapeHtml(item.title)}</div>
-            \${item.description ? \`<div class="card-description">\${escapeHtml(item.description)}</div>\` : ''}
+            \${item.description ? \`<div class="card-desc">\${escapeHtml(item.description).slice(0, 200)}</div>\` : ''}
             <div class="card-tags">
               <span class="tag \${tagClass}">\${tagLabel}</span>
-              \${item.searchQuery ? \`<span class="tag unofficial-tag">Search: \${escapeHtml(item.searchQuery)}</span>\` : ''}
+              \${topicTag ? \`<span class="tag topic-tag">\${topicTag}</span>\` : ''}
+              \${item.searchQuery ? \`<span class="tag unofficial-tag">\${escapeHtml(item.searchQuery)}</span>\` : ''}
             </div>
           </a>\`;
       }).join('');
+    }
+
+    function detectTopic(item) {
+      const text = ((item.title || '') + ' ' + (item.description || '')).toLowerCase();
+      for (const [topic, keywords] of Object.entries(TOPIC_KEYWORDS)) {
+        if (keywords.some(k => text.includes(k))) {
+          return topic.toUpperCase();
+        }
+      }
+      return '';
     }
 
     function switchTab(tab) {
@@ -703,16 +1420,155 @@ export function getHTML() {
       renderFeed();
     }
 
+    // ========================================================================
+    // X / TWITTER SIDEBAR
+    // ========================================================================
+    function buildXSearchTabs() {
+      const container = document.getElementById('xSearchTabs');
+      container.innerHTML = X_SEARCHES.map((q, i) =>
+        \`<button class="x-search-tab \${i === 0 ? 'active' : ''}" data-query="\${escapeHtml(q)}" onclick="switchXQuery(this, '\${escapeHtml(q)}')">\${escapeHtml(q)}</button>\`
+      ).join('');
+      currentXQuery = X_SEARCHES[0];
+    }
+
+    function switchXQuery(el, query) {
+      currentXQuery = query;
+      document.querySelectorAll('.x-search-tab').forEach(t => t.classList.remove('active'));
+      el.classList.add('active');
+      renderXFeed();
+    }
+
+    function renderXFeed() {
+      const container = document.getElementById('xFeedContent');
+      const unofficial = newsData.unofficial || [];
+
+      // Filter by current search query if applicable
+      let xItems = unofficial;
+      if (currentXQuery) {
+        const q = currentXQuery.toLowerCase();
+        xItems = unofficial.filter(item => {
+          const text = ((item.title || '') + ' ' + (item.source || '') + ' ' + (item.searchQuery || '')).toLowerCase();
+          return text.includes(q) || q.split(' ').some(w => text.includes(w));
+        });
+      }
+
+      if (xItems.length === 0) {
+        // Show embedded X search link
+        const encodedQuery = encodeURIComponent(currentXQuery + ' iran');
+        container.innerHTML = \`
+          <div style="padding:12px;">
+            <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:11px;">
+              <p style="margin-bottom:12px;">Monitoring X for: <strong style="color:#1d9bf0">\${escapeHtml(currentXQuery)}</strong></p>
+              <a href="https://x.com/search?q=\${encodedQuery}&f=live" target="_blank" rel="noopener noreferrer"
+                 style="display:inline-block;padding:8px 16px;background:rgba(29,155,240,0.1);border:1px solid rgba(29,155,240,0.3);color:#1d9bf0;text-decoration:none;font-size:10px;letter-spacing:1px;font-family:var(--font-mono);">
+                OPEN LIVE X SEARCH &rarr;
+              </a>
+            </div>
+          </div>
+          <iframe src="https://syndication.twitter.com/srv/timeline-profile/screen-name/IranIntl" class="x-embed-frame" loading="lazy" title="X Feed"></iframe>
+        \`;
+        return;
+      }
+
+      container.innerHTML = '<div class="x-feed-items">' + xItems.slice(0, 20).map(item => \`
+        <a href="\${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer" class="x-post">
+          <div class="x-post-header">
+            <span class="x-post-source">X</span>
+            <span style="font-size:9px;color:var(--text-muted);">\${escapeHtml(item.source)}</span>
+            <span class="x-post-time">\${formatTime(item.date)}</span>
+          </div>
+          <div class="x-post-text">\${escapeHtml(item.title)}</div>
+          \${item.searchQuery ? \`<span class="x-post-query">\${escapeHtml(item.searchQuery)}</span>\` : ''}
+        </a>
+      \`).join('') + '</div>';
+    }
+
+    // ========================================================================
+    // AI CHAT
+    // ========================================================================
+    function toggleChat() {
+      const panel = document.getElementById('chatPanel');
+      const msgs = panel.querySelector('.chat-messages');
+      const input = panel.querySelector('.chat-input-area');
+      if (msgs.style.display === 'none') {
+        msgs.style.display = 'flex';
+        input.style.display = 'flex';
+      } else {
+        msgs.style.display = 'none';
+        input.style.display = 'none';
+      }
+    }
+
+    async function sendChat() {
+      const input = document.getElementById('chatInput');
+      const msg = input.value.trim();
+      if (!msg) return;
+
+      input.value = '';
+      appendChat('user', msg);
+      chatHistory.push({ role: 'user', content: msg });
+
+      // Show typing
+      const typingEl = appendTyping();
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: msg,
+            history: chatHistory.slice(-6),
+          }),
+        });
+
+        const data = await res.json();
+        typingEl.remove();
+
+        if (data.success) {
+          appendChat('ai', data.response);
+          chatHistory.push({ role: 'assistant', content: data.response });
+        } else {
+          appendChat('system', 'Error: ' + (data.error || 'Failed to get response'));
+        }
+      } catch (err) {
+        typingEl.remove();
+        appendChat('system', 'Connection error. Try again.');
+      }
+    }
+
+    function appendChat(role, text) {
+      const container = document.getElementById('chatMessages');
+      const div = document.createElement('div');
+      div.className = 'chat-msg ' + role;
+
+      if (role === 'ai') {
+        div.innerHTML = text
+          .replace(/\\*\\*(.+?)\\*\\*/g, '<strong>$1</strong>')
+          .replace(/\\n/g, '<br>');
+      } else {
+        div.textContent = text;
+      }
+
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+      return div;
+    }
+
+    function appendTyping() {
+      const container = document.getElementById('chatMessages');
+      const div = document.createElement('div');
+      div.className = 'chat-typing';
+      div.innerHTML = '<div class="dots"><span></span><span></span><span></span></div> Analyzing...';
+      container.appendChild(div);
+      container.scrollTop = container.scrollHeight;
+      return div;
+    }
+
+    // ========================================================================
+    // UTILITIES
+    // ========================================================================
     function getIconLabel(icon) {
-      const labels = {
-        reuters: 'R',
-        bbc: 'BBC',
-        aljazeera: 'AJ',
-        ap: 'AP',
-        guardian: 'G',
-        google: 'GN',
-        x: 'X',
-      };
+      const labels = { reuters: 'R', bbc: 'BB', aljazeera: 'AJ', ap: 'AP', guardian: 'G', google: 'GN', x: 'X' };
       return labels[icon] || '?';
     }
 
@@ -724,38 +1580,84 @@ export function getHTML() {
         const diffMins = Math.floor(diffMs / 60000);
         const diffHours = Math.floor(diffMs / 3600000);
         const diffDays = Math.floor(diffMs / 86400000);
-
-        if (diffMins < 1) return 'Just now';
-        if (diffMins < 60) return diffMins + 'm ago';
-        if (diffHours < 24) return diffHours + 'h ago';
-        if (diffDays < 7) return diffDays + 'd ago';
+        if (diffMins < 1) return 'NOW';
+        if (diffMins < 60) return diffMins + 'M';
+        if (diffHours < 24) return diffHours + 'H';
+        if (diffDays < 7) return diffDays + 'D';
         return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      } catch {
-        return '';
-      }
+      } catch { return ''; }
     }
 
     function updateTimestamp(isoStr) {
-      const el = document.getElementById('lastUpdated');
       if (isoStr) {
         const d = new Date(isoStr);
-        el.textContent = 'Updated: ' + d.toLocaleTimeString();
+        const time = d.toLocaleTimeString('en-US', { hour12: false });
+        document.getElementById('lastUpdated').textContent = 'LAST: ' + time;
+        document.getElementById('lastUpdatedStat').textContent = time.slice(0, 5);
       }
     }
 
     function escapeHtml(str) {
       if (!str) return '';
-      return str
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
+      return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
     }
 
-    function showError(msg) {
-      console.error(msg);
+    // ========================================================================
+    // LIVE TICKER
+    // ========================================================================
+    function renderTicker() {
+      const track = document.getElementById('tickerTrack');
+      const all = [...(newsData.official || []), ...(newsData.unofficial || []).filter(i => !i.isMonitoring)];
+      all.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+      const headlines = all.slice(0, 15);
+      if (headlines.length === 0) {
+        track.innerHTML = '<span class="ticker-item">Monitoring feeds for breaking developments...</span>';
+        return;
+      }
+
+      // Duplicate items for seamless infinite scroll
+      const html = headlines.map(item =>
+        \`<span class="ticker-item"><span class="sep">&bull;</span> <span class="ticker-source">\${escapeHtml(item.source)}</span> \${escapeHtml(item.title)}</span>\`
+      ).join('');
+
+      track.innerHTML = html + html;
+
+      // Adjust animation speed based on content length
+      const duration = Math.max(20, headlines.length * 4);
+      track.style.setProperty('--ticker-duration', duration + 's');
+      track.style.animationDuration = duration + 's';
     }
+
+    // ========================================================================
+    // TLDR UPDATE
+    // ========================================================================
+    function updateTldr(summary) {
+      const el = document.getElementById('tldrText');
+      if (!summary) return;
+
+      // Extract the situation overview line for a short TLDR
+      const overviewMatch = summary.match(/SITUATION OVERVIEW[:\\s]*([^*]+?)(?=\\*\\*|$)/i);
+      const threatMatch = summary.match(/THREAT ASSESSMENT[:\\s]*([^*]+?)(?=\\*\\*|$)/i);
+
+      let tldr = '<strong>IRAN WATCHER</strong> &mdash; ';
+      if (threatMatch) {
+        const threat = threatMatch[1].trim().replace(/\\n/g, ' ');
+        tldr += threat;
+      }
+      if (overviewMatch) {
+        const overview = overviewMatch[1].trim().replace(/\\n/g, ' ');
+        tldr += ' ' + overview;
+      }
+
+      if (!threatMatch && !overviewMatch) {
+        tldr += 'Real-time OSINT intelligence dashboard tracking Iran-US conflict developments across official news, social media, and AI-powered analysis.';
+      }
+
+      el.innerHTML = tldr;
+    }
+
+    function showError(msg) { console.error('[IRAN WATCHER]', msg); }
   </script>
 </body>
 </html>`;

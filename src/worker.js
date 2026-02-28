@@ -1,12 +1,12 @@
 // ============================================================================
 // IRAN WATCHER - Cloudflare Workers Application
 // Monitors Iran-US conflict news from official & unofficial channels
-// Uses Workers AI (via AI Gateway) for intelligent summarization
+// Uses Workers AI (via AI Gateway) for intelligent summarization & chat
 // ============================================================================
 
 import { getHTML } from './ui.js';
 import { fetchAllNews } from './sources.js';
-import { generateSummary } from './ai.js';
+import { generateSummary, handleChatMessage } from './ai.js';
 
 export default {
   // ---- HTTP Request Handler ----
@@ -19,6 +19,10 @@ export default {
 
     if (url.pathname === '/api/refresh') {
       return handleRefresh(env);
+    }
+
+    if (url.pathname === '/api/chat' && request.method === 'POST') {
+      return handleChat(request, env);
     }
 
     // Serve the main page
@@ -76,6 +80,27 @@ async function handleRefresh(env) {
   try {
     await refreshNewsData(env);
     return Response.json({ success: true, message: 'News refreshed' });
+  } catch (err) {
+    return Response.json({ success: false, error: err.message }, { status: 500 });
+  }
+}
+
+// AI Chat endpoint
+async function handleChat(request, env) {
+  try {
+    const { message, history } = await request.json();
+
+    if (!message || typeof message !== 'string' || message.length > 1000) {
+      return Response.json({ success: false, error: 'Invalid message' }, { status: 400 });
+    }
+
+    // Get current news context for the AI
+    const cached = await env.NEWS_CACHE.get('latest_news', 'json');
+    const summary = await env.NEWS_CACHE.get('ai_summary', 'text');
+
+    const response = await handleChatMessage(env, message, history || [], cached, summary);
+
+    return Response.json({ success: true, response });
   } catch (err) {
     return Response.json({ success: false, error: err.message }, { status: 500 });
   }

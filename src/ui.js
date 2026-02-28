@@ -1,6 +1,6 @@
 // ============================================================================
 // UI - Full HTML/CSS/JS frontend served inline from the Worker
-// Palantir Gotham-inspired intelligence dashboard
+// y12.ai intelligence dashboard
 // ============================================================================
 
 export function getHTML() {
@@ -9,7 +9,7 @@ export function getHTML() {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>IRAN WATCHER // GOTHAM</title>
+  <title>IRAN WATCHER // y12.ai</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
 
@@ -915,7 +915,57 @@ export function getHTML() {
     .footer-bar a { color: var(--accent-blue); text-decoration: none; }
     .footer-bar a:hover { color: var(--accent-cyan); }
 
-    /* ======== RESPONSIVE ======== */
+    /* ======== MOBILE NAV TOGGLE ======== */
+    .mobile-nav {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border-mid);
+      z-index: 200;
+      padding: 0;
+    }
+
+    .mobile-nav-inner {
+      display: flex;
+      justify-content: space-around;
+      align-items: stretch;
+    }
+
+    .mobile-nav-btn {
+      flex: 1;
+      padding: 10px 4px 8px;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      transition: color 0.15s;
+      border-top: 2px solid transparent;
+    }
+
+    .mobile-nav-btn .nav-icon {
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .mobile-nav-btn.active {
+      color: var(--accent-cyan);
+      border-top-color: var(--accent-cyan);
+    }
+
+    .mobile-panel { display: block; }
+
+    /* ======== RESPONSIVE - TABLET ======== */
     @media (max-width: 1024px) {
       .dashboard {
         grid-template-columns: 1fr;
@@ -923,16 +973,105 @@ export function getHTML() {
       .sidebar {
         border-left: none;
         border-top: 1px solid var(--border-dim);
-        max-height: 500px;
       }
       .header-stats { display: none; }
     }
 
+    /* ======== RESPONSIVE - MOBILE ======== */
     @media (max-width: 768px) {
       .header-main { flex-direction: column; }
-      .logo-block { border-right: none; border-bottom: 1px solid var(--border-dim); }
-      .header-controls { justify-content: center; flex-wrap: wrap; }
-      .topic-bar { padding: 0 8px; }
+      .logo-block {
+        border-right: none;
+        border-bottom: 1px solid var(--border-dim);
+        padding: 10px 14px;
+      }
+      .logo-hex { width: 32px; height: 32px; font-size: 12px; }
+      .logo-text h1 { font-size: 13px; letter-spacing: 3px; }
+      .logo-text .subtitle { font-size: 8px; }
+      .header-controls {
+        justify-content: center;
+        flex-wrap: wrap;
+        padding: 8px 14px;
+        gap: 8px;
+      }
+      .classification-bar { font-size: 7px; letter-spacing: 2px; padding: 2px 0; }
+
+      .dashboard {
+        grid-template-columns: 1fr;
+        padding-bottom: 56px; /* room for mobile nav */
+      }
+
+      .briefing-panel .panel-header { padding: 8px 12px; }
+      .briefing-content { padding: 12px 14px; font-size: 11px; max-height: 200px; }
+
+      .tldr-banner { padding: 8px 12px; gap: 10px; }
+      .tldr-text { font-size: 11px; }
+
+      .ticker-banner { height: 24px; }
+      .ticker-item { font-size: 10px; padding: 0 16px; }
+      .ticker-label { font-size: 8px; padding: 0 8px; }
+
+      .topic-bar {
+        padding: 0 8px;
+        gap: 2px;
+      }
+      .topic-btn { padding: 5px 10px; font-size: 9px; }
+      .topic-label { padding: 8px 8px 8px 0; font-size: 8px; }
+
+      .feed-tabs { overflow-x: auto; }
+      .feed-tab { padding: 8px 10px; font-size: 9px; white-space: nowrap; }
+
+      .news-card { padding: 10px 12px; }
+      .card-title { font-size: 12px; }
+      .card-desc { font-size: 10px; }
+      .card-meta { margin-bottom: 4px; }
+
+      /* Mobile: sidebar stacks below feed */
+      .sidebar {
+        border-left: none;
+        border-top: 1px solid var(--border-dim);
+      }
+
+      /* Chat panel mobile optimizations */
+      .chat-panel {
+        min-height: 240px;
+        max-height: none;
+      }
+      .chat-messages { padding: 10px; min-height: 120px; }
+      .chat-msg { font-size: 12px; max-width: 85%; padding: 8px 10px; }
+      .chat-input { font-size: 14px; padding: 12px; }
+      .chat-send { padding: 12px 14px; font-size: 11px; }
+
+      /* X feed mobile */
+      .x-feed-panel { min-height: 250px; }
+      .x-search-tabs { flex-wrap: nowrap; overflow-x: auto; }
+      .x-search-tab { font-size: 8px; padding: 6px 8px; }
+      .x-embed-frame { min-height: 350px; }
+
+      /* Footer */
+      .footer-bar {
+        flex-direction: column;
+        gap: 4px;
+        text-align: center;
+        font-size: 8px;
+        padding: 8px 12px;
+      }
+
+      /* Show mobile nav */
+      .mobile-nav { display: block; }
+
+      /* Mobile panel switching */
+      .mobile-hidden { display: none !important; }
+    }
+
+    /* ======== RESPONSIVE - SMALL MOBILE ======== */
+    @media (max-width: 400px) {
+      .logo-text h1 { font-size: 11px; letter-spacing: 2px; }
+      .status-indicator { font-size: 8px; padding: 4px 8px; }
+      .ctrl-btn { font-size: 9px; padding: 5px 10px; }
+      .timestamp { font-size: 8px; }
+      .topic-btn { font-size: 8px; padding: 4px 8px; }
+      .chat-input { font-size: 16px; } /* prevent iOS zoom */
     }
 
     /* ======== TLDR BANNER ======== */
@@ -1063,7 +1202,7 @@ export function getHTML() {
         <div class="logo-hex">IW</div>
         <div class="logo-text">
           <h1>IRAN WATCHER</h1>
-          <div class="subtitle">GOTHAM // OSINT MONITOR</div>
+          <div class="subtitle">y12.ai // OSINT MONITOR</div>
         </div>
       </div>
 
@@ -1102,7 +1241,7 @@ export function getHTML() {
     <div class="panel briefing-panel">
       <div class="panel-header">
         <div class="panel-title"><span class="dot"></span> INTELLIGENCE BRIEFING</div>
-        <span class="panel-badge">WORKERS AI</span>
+        <span class="panel-badge">y12.ai</span>
       </div>
       <div class="briefing-content" id="summaryContent">
         <div class="briefing-loading">
@@ -1164,17 +1303,17 @@ export function getHTML() {
 
     <!-- RIGHT SIDEBAR -->
     <div class="sidebar">
-      <!-- X/Twitter Feed -->
+      <!-- X/Twitter Embedded Feed -->
       <div class="panel x-feed-panel">
         <div class="panel-header">
           <div class="panel-title"><span class="dot" style="background:#1d9bf0"></span> X / TWITTER FEED</div>
-          <span class="panel-badge" style="background:rgba(29,155,240,0.1);color:#1d9bf0;border-color:rgba(29,155,240,0.2)">LIVE</span>
+          <span class="panel-badge" style="background:rgba(29,155,240,0.1);color:#1d9bf0;border-color:rgba(29,155,240,0.2)">LIVE EMBED</span>
         </div>
         <div class="x-search-tabs" id="xSearchTabs"></div>
         <div class="x-feed-content" id="xFeedContent">
           <div class="briefing-loading">
             <div class="spinner"></div>
-            Loading X feed...
+            Loading X embeds...
           </div>
         </div>
       </div>
@@ -1182,22 +1321,44 @@ export function getHTML() {
       <!-- AI Chat -->
       <div class="panel chat-panel" id="chatPanel">
         <div class="panel-header" onclick="toggleChat()">
-          <div class="panel-title"><span class="dot" style="background:var(--accent-purple)"></span> AI ANALYST CHAT</div>
-          <span class="panel-badge">ASK AI</span>
+          <div class="panel-title"><span class="dot" style="background:var(--accent-purple)"></span> y12.ai ANALYST</div>
+          <span class="panel-badge">y12.ai</span>
         </div>
         <div class="chat-messages" id="chatMessages">
-          <div class="chat-msg system">Ask questions about the intelligence briefing or current events.</div>
+          <div class="chat-msg system">y12.ai analyst ready. Ask about the briefing or current events.</div>
         </div>
         <div class="chat-input-area">
-          <input type="text" class="chat-input" id="chatInput" placeholder="Ask the AI analyst..." onkeydown="if(event.key==='Enter')sendChat()" />
+          <input type="text" class="chat-input" id="chatInput" placeholder="Ask y12.ai analyst..." onkeydown="if(event.key==='Enter')sendChat()" />
           <button class="chat-send" id="chatSend" onclick="sendChat()">SEND</button>
         </div>
       </div>
     </div>
 
+    <!-- MOBILE BOTTOM NAV -->
+    <nav class="mobile-nav">
+      <div class="mobile-nav-inner">
+        <button class="mobile-nav-btn active" onclick="mobileSwitch('feed')" data-panel="feed">
+          <span class="nav-icon">&#9776;</span>
+          FEED
+        </button>
+        <button class="mobile-nav-btn" onclick="mobileSwitch('xfeed')" data-panel="xfeed">
+          <span class="nav-icon">&#120143;</span>
+          X FEED
+        </button>
+        <button class="mobile-nav-btn" onclick="mobileSwitch('chat')" data-panel="chat">
+          <span class="nav-icon">&#9993;</span>
+          AI CHAT
+        </button>
+        <button class="mobile-nav-btn" onclick="mobileSwitch('brief')" data-panel="brief">
+          <span class="nav-icon">&#9733;</span>
+          BRIEF
+        </button>
+      </div>
+    </nav>
+
     <!-- FOOTER -->
     <div class="footer-bar">
-      <span>IRAN WATCHER v2.0 // <a href="https://workers.cloudflare.com" target="_blank" rel="noopener noreferrer">CLOUDFLARE WORKERS</a> + <a href="https://ai.cloudflare.com" target="_blank" rel="noopener noreferrer">WORKERS AI</a></span>
+      <span>IRAN WATCHER v2.0 // Powered by <a href="https://y12.ai" target="_blank" rel="noopener noreferrer">y12.ai</a></span>
       <span>OSINT ONLY // NOT INTELLIGENCE PRODUCT</span>
     </div>
   </div>
@@ -1210,7 +1371,6 @@ export function getHTML() {
     let currentTab = 'all';
     let currentTopic = 'all';
     let chatHistory = [];
-    let currentXQuery = '';
 
     const TOPIC_KEYWORDS = {
       military: ['military', 'irgc', 'revolutionary guard', 'missile', 'drone', 'strike', 'attack', 'air defense', 'ballistic', 'cruise missile', 'quds force', 'armed forces', 'army', 'navy', 'aircraft', 'weapon'],
@@ -1222,13 +1382,14 @@ export function getHTML() {
       energy: ['oil', 'petroleum', 'opec', 'crude', 'barrel', 'pipeline', 'natural gas', 'energy', 'refinery', 'export'],
     };
 
-    const X_SEARCHES = [
-      'iran US conflict',
-      'IRGC attack',
-      'iran retaliation',
-      'iran nuclear',
-      'houthi red sea',
-      'hezbollah iran',
+    // X/Twitter accounts + search queries for embed tabs
+    const X_ACCOUNTS = [
+      { label: '@IranIntl', handle: 'IranIntl', type: 'account' },
+      { label: '@IranWire', handle: 'IranWireEnglish', type: 'account' },
+      { label: '@ABORACIR', handle: 'ABORACIR', type: 'account' },
+      { label: 'Iran+US', query: 'iran US conflict', type: 'search' },
+      { label: 'IRGC', query: 'IRGC attack OR IRGC news', type: 'search' },
+      { label: 'Nuclear', query: 'iran nuclear program', type: 'search' },
     ];
 
     // ========================================================================
@@ -1421,66 +1582,85 @@ export function getHTML() {
     }
 
     // ========================================================================
-    // X / TWITTER SIDEBAR
+    // X / TWITTER EMBEDDED FEED
     // ========================================================================
+    let currentXTab = 0;
+
     function buildXSearchTabs() {
       const container = document.getElementById('xSearchTabs');
-      container.innerHTML = X_SEARCHES.map((q, i) =>
-        \`<button class="x-search-tab \${i === 0 ? 'active' : ''}" data-query="\${escapeHtml(q)}" onclick="switchXQuery(this, '\${escapeHtml(q)}')">\${escapeHtml(q)}</button>\`
+      container.innerHTML = X_ACCOUNTS.map((item, i) =>
+        \`<button class="x-search-tab \${i === 0 ? 'active' : ''}" onclick="switchXTab(\${i})">\${escapeHtml(item.label)}</button>\`
       ).join('');
-      currentXQuery = X_SEARCHES[0];
+      renderXEmbed(0);
     }
 
-    function switchXQuery(el, query) {
-      currentXQuery = query;
-      document.querySelectorAll('.x-search-tab').forEach(t => t.classList.remove('active'));
-      el.classList.add('active');
-      renderXFeed();
+    function switchXTab(idx) {
+      currentXTab = idx;
+      document.querySelectorAll('.x-search-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
+      renderXEmbed(idx);
+    }
+
+    function renderXEmbed(idx) {
+      const container = document.getElementById('xFeedContent');
+      const item = X_ACCOUNTS[idx];
+
+      if (item.type === 'account') {
+        // Render a real embedded Twitter timeline
+        container.innerHTML = \`
+          <a class="twitter-timeline"
+             data-theme="dark"
+             data-chrome="noheader nofooter noborders transparent"
+             data-height="600"
+             href="https://twitter.com/\${item.handle}">
+            Loading @\${item.handle}...
+          </a>
+        \`;
+        // Ask Twitter widgets.js to render it
+        if (window.twttr && window.twttr.widgets) {
+          window.twttr.widgets.load(container);
+        }
+      } else {
+        // Search query — show link to live X search + RSS-based posts
+        const encodedQuery = encodeURIComponent(item.query);
+        const unofficial = newsData.unofficial || [];
+        const q = item.query.toLowerCase().split(' OR ')[0].trim();
+        const xItems = unofficial.filter(post => {
+          const text = ((post.title || '') + ' ' + (post.source || '') + ' ' + (post.searchQuery || '')).toLowerCase();
+          return text.includes(q) || q.split(' ').some(w => w.length > 3 && text.includes(w));
+        });
+
+        let html = \`
+          <div style="padding:10px 14px;border-bottom:1px solid var(--border-dim);">
+            <a href="https://x.com/search?q=\${encodedQuery}&f=live" target="_blank" rel="noopener noreferrer"
+               style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:rgba(29,155,240,0.08);border:1px solid rgba(29,155,240,0.2);color:#1d9bf0;text-decoration:none;font-size:10px;letter-spacing:1px;font-family:var(--font-mono);justify-content:center;">
+              OPEN LIVE X SEARCH: \${escapeHtml(item.query)} &rarr;
+            </a>
+          </div>\`;
+
+        if (xItems.length > 0) {
+          html += '<div class="x-feed-items">' + xItems.slice(0, 20).map(post => \`
+            <a href="\${escapeHtml(post.link)}" target="_blank" rel="noopener noreferrer" class="x-post">
+              <div class="x-post-header">
+                <span class="x-post-source">X</span>
+                <span style="font-size:9px;color:var(--text-muted);">\${escapeHtml(post.source)}</span>
+                <span class="x-post-time">\${formatTime(post.date)}</span>
+              </div>
+              <div class="x-post-text">\${escapeHtml(post.title)}</div>
+            </a>\`).join('') + '</div>';
+        } else {
+          html += \`
+            <div style="text-align:center;padding:40px 20px;color:var(--text-muted);font-size:11px;">
+              Click above to view live X results for <strong style="color:#1d9bf0">\${escapeHtml(item.query)}</strong>
+            </div>\`;
+        }
+
+        container.innerHTML = html;
+      }
     }
 
     function renderXFeed() {
-      const container = document.getElementById('xFeedContent');
-      const unofficial = newsData.unofficial || [];
-
-      // Filter by current search query if applicable
-      let xItems = unofficial;
-      if (currentXQuery) {
-        const q = currentXQuery.toLowerCase();
-        xItems = unofficial.filter(item => {
-          const text = ((item.title || '') + ' ' + (item.source || '') + ' ' + (item.searchQuery || '')).toLowerCase();
-          return text.includes(q) || q.split(' ').some(w => text.includes(w));
-        });
-      }
-
-      if (xItems.length === 0) {
-        // Show embedded X search link
-        const encodedQuery = encodeURIComponent(currentXQuery + ' iran');
-        container.innerHTML = \`
-          <div style="padding:12px;">
-            <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:11px;">
-              <p style="margin-bottom:12px;">Monitoring X for: <strong style="color:#1d9bf0">\${escapeHtml(currentXQuery)}</strong></p>
-              <a href="https://x.com/search?q=\${encodedQuery}&f=live" target="_blank" rel="noopener noreferrer"
-                 style="display:inline-block;padding:8px 16px;background:rgba(29,155,240,0.1);border:1px solid rgba(29,155,240,0.3);color:#1d9bf0;text-decoration:none;font-size:10px;letter-spacing:1px;font-family:var(--font-mono);">
-                OPEN LIVE X SEARCH &rarr;
-              </a>
-            </div>
-          </div>
-          <iframe src="https://syndication.twitter.com/srv/timeline-profile/screen-name/IranIntl" class="x-embed-frame" loading="lazy" title="X Feed"></iframe>
-        \`;
-        return;
-      }
-
-      container.innerHTML = '<div class="x-feed-items">' + xItems.slice(0, 20).map(item => \`
-        <a href="\${escapeHtml(item.link)}" target="_blank" rel="noopener noreferrer" class="x-post">
-          <div class="x-post-header">
-            <span class="x-post-source">X</span>
-            <span style="font-size:9px;color:var(--text-muted);">\${escapeHtml(item.source)}</span>
-            <span class="x-post-time">\${formatTime(item.date)}</span>
-          </div>
-          <div class="x-post-text">\${escapeHtml(item.title)}</div>
-          \${item.searchQuery ? \`<span class="x-post-query">\${escapeHtml(item.searchQuery)}</span>\` : ''}
-        </a>
-      \`).join('') + '</div>';
+      // Re-render the current X tab (called when news data updates)
+      renderXEmbed(currentXTab);
     }
 
     // ========================================================================
@@ -1657,8 +1837,97 @@ export function getHTML() {
       el.innerHTML = tldr;
     }
 
+    // ========================================================================
+    // MOBILE PANEL SWITCHING
+    // ========================================================================
+    let currentMobilePanel = 'feed';
+
+    function mobileSwitch(panel) {
+      if (window.innerWidth > 768) return; // only on mobile
+      currentMobilePanel = panel;
+
+      // Update nav buttons
+      document.querySelectorAll('.mobile-nav-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.panel === panel);
+      });
+
+      // Get panel elements
+      const feedArea = document.querySelector('.feed-area');
+      const sidebar = document.querySelector('.sidebar');
+      const briefing = document.querySelector('.briefing-panel');
+      const xPanel = document.querySelector('.x-feed-panel');
+      const chatPanel = document.getElementById('chatPanel');
+      const topicBar = document.getElementById('topicBar');
+      const tldr = document.getElementById('tldrBanner');
+      const ticker = document.getElementById('tickerBanner');
+
+      // Reset all
+      [feedArea, sidebar, briefing, topicBar, tldr, ticker].forEach(el => {
+        if (el) el.classList.remove('mobile-hidden');
+      });
+
+      // Show chat messages when switching to chat
+      if (chatPanel) {
+        const msgs = chatPanel.querySelector('.chat-messages');
+        const input = chatPanel.querySelector('.chat-input-area');
+        if (msgs) msgs.style.display = 'flex';
+        if (input) input.style.display = 'flex';
+      }
+
+      switch (panel) {
+        case 'feed':
+          if (sidebar) sidebar.classList.add('mobile-hidden');
+          if (briefing) briefing.classList.add('mobile-hidden');
+          break;
+        case 'xfeed':
+          if (feedArea) feedArea.classList.add('mobile-hidden');
+          if (briefing) briefing.classList.add('mobile-hidden');
+          if (topicBar) topicBar.classList.add('mobile-hidden');
+          if (tldr) tldr.classList.add('mobile-hidden');
+          if (ticker) ticker.classList.add('mobile-hidden');
+          // Show only X panel, hide chat
+          if (chatPanel) chatPanel.classList.add('mobile-hidden');
+          break;
+        case 'chat':
+          if (feedArea) feedArea.classList.add('mobile-hidden');
+          if (briefing) briefing.classList.add('mobile-hidden');
+          if (topicBar) topicBar.classList.add('mobile-hidden');
+          if (tldr) tldr.classList.add('mobile-hidden');
+          if (ticker) ticker.classList.add('mobile-hidden');
+          // Show only chat, hide X panel
+          if (xPanel) xPanel.classList.add('mobile-hidden');
+          // Expand chat to full height
+          if (chatPanel) {
+            chatPanel.style.minHeight = 'calc(100vh - 160px)';
+            chatPanel.style.maxHeight = 'none';
+          }
+          break;
+        case 'brief':
+          if (feedArea) feedArea.classList.add('mobile-hidden');
+          if (sidebar) sidebar.classList.add('mobile-hidden');
+          break;
+      }
+
+      // Reset chat panel height when not in chat mode
+      if (panel !== 'chat' && chatPanel) {
+        chatPanel.style.minHeight = '';
+        chatPanel.style.maxHeight = '';
+      }
+
+      // Focus chat input when switching to chat
+      if (panel === 'chat') {
+        setTimeout(() => {
+          const input = document.getElementById('chatInput');
+          if (input) input.focus();
+        }, 100);
+      }
+    }
+
     function showError(msg) { console.error('[IRAN WATCHER]', msg); }
   </script>
+
+  <!-- Twitter widgets.js for embedded timelines -->
+  <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 </body>
 </html>`;
 }

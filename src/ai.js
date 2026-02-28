@@ -1,5 +1,5 @@
 // ============================================================================
-// AI SUMMARIZATION & CHAT - Uses Cloudflare Workers AI
+// AI SUMMARIZATION & CHAT - Powered by y12.ai
 // Generates intelligence briefings and handles real-time analyst chat
 // ============================================================================
 
@@ -100,7 +100,7 @@ export async function handleChatMessage(env, message, history, newsData, current
       newsContext += 'CURRENT INTELLIGENCE BRIEFING:\n' + currentSummary + '\n\n';
     }
 
-    const systemPrompt = `You are an AI intelligence analyst embedded in the IRAN WATCHER monitoring system. You have access to real-time OSINT data about Iran-US relations and Middle East geopolitics.
+    const systemPrompt = `You are a y12.ai intelligence analyst embedded in the IRAN WATCHER monitoring system. You have access to real-time OSINT data about Iran-US relations and Middle East geopolitics.
 
 ${newsContext}
 

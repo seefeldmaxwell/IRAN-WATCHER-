@@ -1255,7 +1255,7 @@ export function getHTML() {
     <div class="tldr-banner" id="tldrBanner">
       <span class="tldr-label">TL;DR</span>
       <div class="tldr-text" id="tldrText">
-        <strong>IRAN WATCHER</strong> is a real-time OSINT intelligence dashboard tracking Iran-US conflict developments. It aggregates official news (Reuters, BBC, Al Jazeera, AP, Guardian), Google News, and X/Twitter feeds, then uses AI to generate threat assessments and intelligence briefings. Filter by topic, chat with the AI analyst, and monitor live X feeds &mdash; all powered by Cloudflare Workers at the edge.
+        <strong>IRAN WATCHER</strong> is a real-time OSINT intelligence dashboard tracking Iran-US conflict developments. It aggregates official news (Reuters, BBC, Al Jazeera, AP, Guardian), Google News, and X/Twitter feeds, then uses AI to generate threat assessments and intelligence briefings. Filter by topic, chat with the AI analyst, and monitor live X feeds &mdash; powered by <strong>y12.ai</strong>.
       </div>
     </div>
 

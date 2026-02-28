@@ -177,22 +177,40 @@ async function fetchGoogleNewsRSS() {
     });
 }
 
-// ---- Fetch X/Twitter Mentions (via Nitter/RSS bridges) ----
-export async function fetchXMentions() {
-  // Use multiple public RSS bridge endpoints for X/Twitter search
-  const bridges = [
-    'https://rsshub.app/twitter/search/',
-    'https://rss.app/feeds/twitter/',
-  ];
+// ---- X/Twitter Account Handles for Timeline Fetching ----
+const X_ACCOUNTS = ['IranIntl', 'IranWireEnglish', 'ABORACIR'];
 
+// ---- Nitter/Alternative Frontend Instances for RSS ----
+const NITTER_INSTANCES = [
+  'https://nitter.privacydev.net',
+  'https://nitter.poast.org',
+  'https://xcancel.com',
+  'https://nitter.woodland.cafe',
+];
+
+// ---- Fetch X/Twitter Mentions (via multiple fallback methods) ----
+export async function fetchXMentions() {
+  const results = await Promise.allSettled([
+    fetchXAccountTimelines(),
+    fetchXSearchPosts(),
+  ]);
+
+  const accountPosts = results[0].status === 'fulfilled' ? results[0].value : [];
+  const searchPosts = results[1].status === 'fulfilled' ? results[1].value : [];
+
+  return [...accountPosts, ...searchPosts];
+}
+
+// ---- Fetch timelines for specific X accounts via Nitter RSS ----
+async function fetchXAccountTimelines() {
   const results = await Promise.allSettled(
-    X_SEARCH_QUERIES.slice(0, 5).map(async (query) => {
-      for (const bridge of bridges) {
+    X_ACCOUNTS.map(async (handle) => {
+      // Try each Nitter instance until one works
+      for (const instance of NITTER_INSTANCES) {
         try {
-          const encodedQuery = encodeURIComponent(query);
-          const url = `${bridge}${encodedQuery}`;
+          const url = `${instance}/${handle}/rss`;
           const response = await fetch(url, {
-            headers: { 'User-Agent': 'IranWatcher/1.0 (Cloudflare Worker)' },
+            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; IranWatcher/1.0)' },
             cf: { cacheTtl: 300 },
           });
 
@@ -201,12 +219,88 @@ export async function fetchXMentions() {
           const text = await response.text();
           const items = parseRSSXML(text);
 
-          return items.slice(0, 5).map(item => ({
-            title: cleanHTML(item.title).slice(0, 200),
-            description: cleanHTML(item.description).slice(0, 300),
-            link: item.link,
+          if (items.length === 0) continue;
+
+          return items.slice(0, 10).map(item => ({
+            title: cleanHTML(item.title).slice(0, 280),
+            description: cleanHTML(item.description).slice(0, 500),
+            link: item.link ? item.link.replace(/nitter\.[^/]+/, 'x.com').replace(/xcancel\.com/, 'x.com') : `https://x.com/${handle}`,
             date: item.pubDate || new Date().toISOString(),
-            source: `X (Twitter) - "${query}"`,
+            source: `@${handle}`,
+            category: 'unofficial',
+            icon: 'x',
+            handle: handle,
+            searchQuery: '',
+          }));
+        } catch {
+          continue;
+        }
+      }
+
+      // Try FxTwitter API as final fallback for account timelines
+      try {
+        const response = await fetch(`https://api.fxtwitter.com/${handle}`, {
+          headers: { 'User-Agent': 'IranWatcher/1.0' },
+          cf: { cacheTtl: 300 },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.tweets && data.tweets.length > 0) {
+            return data.tweets.slice(0, 10).map(tweet => ({
+              title: (tweet.text || '').slice(0, 280),
+              description: (tweet.text || '').slice(0, 500),
+              link: tweet.url || `https://x.com/${handle}`,
+              date: tweet.created_at || new Date().toISOString(),
+              source: `@${handle}`,
+              category: 'unofficial',
+              icon: 'x',
+              handle: handle,
+              searchQuery: '',
+            }));
+          }
+        }
+      } catch {
+        // FxTwitter fallback failed
+      }
+
+      return [];
+    })
+  );
+
+  return results
+    .filter(r => r.status === 'fulfilled')
+    .flatMap(r => r.value);
+}
+
+// ---- Fetch X search results via Nitter RSS search ----
+async function fetchXSearchPosts() {
+  const results = await Promise.allSettled(
+    X_SEARCH_QUERIES.slice(0, 5).map(async (query) => {
+      const encodedQuery = encodeURIComponent(query);
+
+      // Try Nitter search RSS
+      for (const instance of NITTER_INSTANCES) {
+        try {
+          const url = `${instance}/search/rss?f=tweets&q=${encodedQuery}`;
+          const response = await fetch(url, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; IranWatcher/1.0)' },
+            cf: { cacheTtl: 300 },
+          });
+
+          if (!response.ok) continue;
+
+          const text = await response.text();
+          const items = parseRSSXML(text);
+
+          if (items.length === 0) continue;
+
+          return items.slice(0, 5).map(item => ({
+            title: cleanHTML(item.title).slice(0, 280),
+            description: cleanHTML(item.description).slice(0, 500),
+            link: item.link ? item.link.replace(/nitter\.[^/]+/, 'x.com').replace(/xcancel\.com/, 'x.com') : `https://x.com/search?q=${encodedQuery}`,
+            date: item.pubDate || new Date().toISOString(),
+            source: `X Search - "${query}"`,
             category: 'unofficial',
             icon: 'x',
             searchQuery: query,
@@ -216,7 +310,35 @@ export async function fetchXMentions() {
         }
       }
 
-      // Fallback: generate synthetic monitoring entries showing what's being tracked
+      // Try RSSHub as additional fallback
+      try {
+        const url = `https://rsshub.app/twitter/search/${encodedQuery}`;
+        const response = await fetch(url, {
+          headers: { 'User-Agent': 'IranWatcher/1.0' },
+          cf: { cacheTtl: 300 },
+        });
+
+        if (response.ok) {
+          const text = await response.text();
+          const items = parseRSSXML(text);
+          if (items.length > 0) {
+            return items.slice(0, 5).map(item => ({
+              title: cleanHTML(item.title).slice(0, 280),
+              description: cleanHTML(item.description).slice(0, 500),
+              link: item.link,
+              date: item.pubDate || new Date().toISOString(),
+              source: `X Search - "${query}"`,
+              category: 'unofficial',
+              icon: 'x',
+              searchQuery: query,
+            }));
+          }
+        }
+      } catch {
+        // RSSHub fallback failed
+      }
+
+      // Final fallback: monitoring placeholder
       return [{
         title: `Monitoring X for: "${query}"`,
         description: `Actively watching X/Twitter for posts matching "${query}". Posts will appear here when detected.`,

@@ -1307,7 +1307,7 @@ export function getHTML() {
       <div class="panel x-feed-panel">
         <div class="panel-header">
           <div class="panel-title"><span class="dot" style="background:#1d9bf0"></span> X / TWITTER FEED</div>
-          <span class="panel-badge" style="background:rgba(29,155,240,0.1);color:#1d9bf0;border-color:rgba(29,155,240,0.2)">LIVE EMBED</span>
+          <span class="panel-badge" style="background:rgba(29,155,240,0.1);color:#1d9bf0;border-color:rgba(29,155,240,0.2)">LIVE FEED</span>
         </div>
         <div class="x-search-tabs" id="xSearchTabs"></div>
         <div class="x-feed-content" id="xFeedContent">
@@ -1603,28 +1603,52 @@ export function getHTML() {
     function renderXEmbed(idx) {
       const container = document.getElementById('xFeedContent');
       const item = X_ACCOUNTS[idx];
+      const unofficial = newsData.unofficial || [];
 
       if (item.type === 'account') {
-        // Render a real embedded Twitter timeline
-        container.innerHTML = \`
-          <a class="twitter-timeline"
-             data-theme="dark"
-             data-chrome="noheader nofooter noborders transparent"
-             data-height="600"
-             href="https://twitter.com/\${item.handle}">
-            Loading @\${item.handle}...
-          </a>
-        \`;
-        // Ask Twitter widgets.js to render it
-        if (window.twttr && window.twttr.widgets) {
-          window.twttr.widgets.load(container);
+        // Filter posts from this specific account handle
+        const accountPosts = unofficial.filter(post =>
+          post.handle === item.handle || (post.source && post.source === '@' + item.handle)
+        );
+
+        let html = \`
+          <div style="padding:10px 14px;border-bottom:1px solid var(--border-dim);">
+            <a href="https://x.com/\${item.handle}" target="_blank" rel="noopener noreferrer"
+               style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:rgba(29,155,240,0.08);border:1px solid rgba(29,155,240,0.2);color:#1d9bf0;text-decoration:none;font-size:10px;letter-spacing:1px;font-family:var(--font-mono);justify-content:center;">
+              VIEW @\${item.handle.toUpperCase()} ON X &rarr;
+            </a>
+          </div>\`;
+
+        if (accountPosts.length > 0) {
+          html += '<div class="x-feed-items">' + accountPosts.filter(p => !p.isMonitoring).slice(0, 20).map(post => \`
+            <a href="\${escapeHtml(post.link)}" target="_blank" rel="noopener noreferrer" class="x-post">
+              <div class="x-post-header">
+                <span class="x-post-source">@\${escapeHtml(item.handle)}</span>
+                <span class="x-post-time">\${formatTime(post.date)}</span>
+              </div>
+              <div class="x-post-text">\${escapeHtml(post.title)}</div>
+              \${post.description && post.description !== post.title ? '<div style="font-size:10px;color:var(--text-muted);margin-top:4px;line-height:1.4;">' + escapeHtml(post.description).slice(0, 200) + '</div>' : ''}
+            </a>\`).join('') + '</div>';
+        } else {
+          html += \`
+            <div style="text-align:center;padding:40px 20px;color:var(--text-muted);font-size:11px;line-height:1.6;">
+              <div style="font-size:20px;margin-bottom:8px;opacity:0.3;">&#120143;</div>
+              No posts loaded from @\${escapeHtml(item.handle)} yet.<br>
+              <span style="font-size:10px;">Posts will appear here once fetched from X.</span><br>
+              <a href="https://x.com/\${item.handle}" target="_blank" rel="noopener noreferrer"
+                 style="color:#1d9bf0;text-decoration:none;margin-top:8px;display:inline-block;">
+                View @\${escapeHtml(item.handle)} directly on X &rarr;
+              </a>
+            </div>\`;
         }
+
+        container.innerHTML = html;
       } else {
-        // Search query — show link to live X search + RSS-based posts
+        // Search query — show link to live X search + matched posts
         const encodedQuery = encodeURIComponent(item.query);
-        const unofficial = newsData.unofficial || [];
         const q = item.query.toLowerCase().split(' OR ')[0].trim();
         const xItems = unofficial.filter(post => {
+          if (post.isMonitoring) return false;
           const text = ((post.title || '') + ' ' + (post.source || '') + ' ' + (post.searchQuery || '')).toLowerCase();
           return text.includes(q) || q.split(' ').some(w => w.length > 3 && text.includes(w));
         });
@@ -1641,16 +1665,18 @@ export function getHTML() {
           html += '<div class="x-feed-items">' + xItems.slice(0, 20).map(post => \`
             <a href="\${escapeHtml(post.link)}" target="_blank" rel="noopener noreferrer" class="x-post">
               <div class="x-post-header">
-                <span class="x-post-source">X</span>
-                <span style="font-size:9px;color:var(--text-muted);">\${escapeHtml(post.source)}</span>
+                <span class="x-post-source">\${escapeHtml(post.source || 'X')}</span>
                 <span class="x-post-time">\${formatTime(post.date)}</span>
               </div>
               <div class="x-post-text">\${escapeHtml(post.title)}</div>
+              \${post.description && post.description !== post.title ? '<div style="font-size:10px;color:var(--text-muted);margin-top:4px;line-height:1.4;">' + escapeHtml(post.description).slice(0, 200) + '</div>' : ''}
             </a>\`).join('') + '</div>';
         } else {
           html += \`
-            <div style="text-align:center;padding:40px 20px;color:var(--text-muted);font-size:11px;">
-              Click above to view live X results for <strong style="color:#1d9bf0">\${escapeHtml(item.query)}</strong>
+            <div style="text-align:center;padding:40px 20px;color:var(--text-muted);font-size:11px;line-height:1.6;">
+              <div style="font-size:20px;margin-bottom:8px;opacity:0.3;">&#120143;</div>
+              No X posts found for <strong style="color:#1d9bf0">\${escapeHtml(item.query)}</strong> yet.<br>
+              <span style="font-size:10px;">Click above to view live results on X.</span>
             </div>\`;
         }
 
@@ -1926,8 +1952,6 @@ export function getHTML() {
     function showError(msg) { console.error('[IRAN WATCHER]', msg); }
   </script>
 
-  <!-- Twitter widgets.js for embedded timelines -->
-  <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
 </body>
 </html>`;
 }

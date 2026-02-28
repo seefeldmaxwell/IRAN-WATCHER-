@@ -1,0 +1,14 @@
+{
+  "name": "iran-watcher",
+  "version": "1.0.0",
+  "description": "Iran News Watcher - Cloudflare Workers application for monitoring Iran-US conflict news",
+  "main": "src/worker.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "wrangler": "^3.99.0"
+  }
+}

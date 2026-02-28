@@ -1,0 +1,17 @@
+name = "iran-watcher"
+main = "src/worker.js"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# KV namespace for caching news data
+[[kv_namespaces]]
+binding = "NEWS_CACHE"
+id = "83b4e5a679c74d88a4a90445341c6657"
+
+# Workers AI binding for summarization
+[ai]
+binding = "AI"
+
+# Cron trigger - refresh news every 15 minutes
+[triggers]
+crons = ["*/15 * * * *"]

@@ -1146,24 +1146,26 @@ export function getHTML() {
       color-scheme: dark;
     }
 
-    /* Twitter embed container */
+    /* Twitter syndication embed container */
     .x-twitter-embed {
       flex: 1;
       overflow-y: auto;
       background: var(--bg-primary);
       min-height: 400px;
+      position: relative;
     }
 
-    .x-twitter-embed .twitter-timeline {
-      color: var(--text-muted) !important;
-      font-family: var(--font-mono) !important;
-      font-size: 11px !important;
-      display: block;
-      padding: 20px;
-      text-align: center;
+    /* Direct syndication iframe — fills container */
+    .x-syndication-iframe {
+      width: 100%;
+      height: 100%;
+      min-height: 500px;
+      border: none;
+      background: transparent;
+      color-scheme: dark;
     }
 
-    /* Force Twitter iframe to fill container */
+    /* Force any Twitter iframe to fill container */
     .x-twitter-embed iframe {
       width: 100% !important;
       border: none !important;
@@ -1752,20 +1754,7 @@ export function getHTML() {
     ::-webkit-scrollbar-thumb { background: var(--border-dim); }
     ::-webkit-scrollbar-thumb:hover { background: var(--border-mid); }
   </style>
-  <script>
-    // Twitter widgets.js — official embed SDK for client-side timeline rendering
-    window.twttr = (function(d, s, id) {
-      var js, fjs = d.getElementsByTagName(s)[0], t = window.twttr || {};
-      if (d.getElementById(id)) return t;
-      js = d.createElement(s); js.id = id;
-      js.src = "https://platform.twitter.com/widgets.js";
-      js.async = true;
-      fjs.parentNode.insertBefore(js, fjs);
-      t._e = [];
-      t.ready = function(f) { t._e.push(f); };
-      return t;
-    }(document, "script", "twitter-wjs"));
-  </script>
+
 </head>
 <body>
   <div class="bg-grid"></div>
@@ -2185,13 +2174,12 @@ export function getHTML() {
     }
 
     // ========================================================================
-    // X / TWITTER FEED — Twitter official embed widget (client-side)
-    // Server-side APIs failed (RSSHub, Nitter, Syndication all blocked).
-    // Using Twitter's widgets.js loads timeline directly in user's browser.
+    // X / TWITTER FEED — Direct client-side syndication iframe
+    // Browser fetches directly from Twitter, bypassing server-side proxy issues.
+    // Fallback: server-side API + RSS data cards.
     // ========================================================================
     let currentXTab = 0;
     let xAutoRefreshTimer = null;
-    let xEmbedFallbackTimer = null;
 
     function buildXSearchTabs() {
       const container = document.getElementById('xSearchTabs');
@@ -2212,47 +2200,43 @@ export function getHTML() {
       const item = X_ACCOUNTS[idx];
 
       if (xAutoRefreshTimer) clearInterval(xAutoRefreshTimer);
-      if (xEmbedFallbackTimer) clearTimeout(xEmbedFallbackTimer);
 
       const openUrl = item.type === 'account'
         ? \`https://x.com/\${item.handle}\`
         : \`https://x.com/search?q=\${encodeURIComponent(item.query)}&f=live\`;
 
       if (item.type === 'account') {
-        // ---- ACCOUNT: Use Twitter's official embed widget (client-side) ----
+        // ---- ACCOUNT: Direct syndication iframe (browser fetches from Twitter) ----
         const statusLabel = \`LIVE TIMELINE — @\${item.handle.toUpperCase()}\`;
+        const syndicationUrl = \`https://syndication.twitter.com/srv/timeline-profile/screen-name/\${item.handle}?dnt=true&embedId=twitter-widget-\${idx}&frame=false&hideBorder=true&hideFooter=true&hideHeader=true&hideScrollBar=false&lang=en&theme=dark&transparent=true\`;
 
         container.innerHTML = \`
           <div class="x-embed-status" id="xEmbedStatus">
             <span class="status-dot" style="width:5px;height:5px;background:#1d9bf0;border-radius:50%;animation:blink 2s infinite;"></span>
             <span>\${statusLabel}</span>
-            <span style="margin-left:auto;font-size:8px;opacity:0.6;" id="xRefreshTime">EMBEDDING...</span>
+            <span style="margin-left:auto;font-size:8px;opacity:0.6;" id="xRefreshTime">CONNECTING...</span>
           </div>
           <div class="x-twitter-embed" id="xTwitterEmbed">
-            <a class="twitter-timeline"
-               data-dnt="true"
-               data-theme="dark"
-               data-chrome="noheader nofooter noborders transparent"
-               data-tweet-limit="25"
-               href="https://twitter.com/\${item.handle}?ref_src=twsrc%5Etfw">
-              Loading @\${item.handle}...
-            </a>
+            <iframe src="\${syndicationUrl}"
+              class="x-syndication-iframe"
+              sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox"
+              loading="lazy"
+              onload="xIframeLoaded()"
+              onerror="xIframeFailed(\${idx})">
+            </iframe>
           </div>
           <div class="x-iframe-footer">
             <button class="x-refresh-btn" onclick="renderXEmbed(\${idx})">&#8635; REFRESH</button>
             <a href="\${openUrl}" target="_blank" rel="noopener noreferrer" class="x-open-btn">OPEN ON X &rarr;</a>
           </div>\`;
 
-        // Process the new embed with widgets.js
-        processTwitterEmbed();
-
-        // Fallback: if embed hasn't rendered in 12s, try server-side API
-        xEmbedFallbackTimer = setTimeout(() => {
-          const embed = document.getElementById('xTwitterEmbed');
-          if (embed && !embed.querySelector('iframe')) {
+        // Fallback: if iframe hasn't loaded or is empty after 15s, try API
+        setTimeout(() => {
+          const timeEl = document.getElementById('xRefreshTime');
+          if (timeEl && timeEl.textContent === 'CONNECTING...') {
             loadXFeedDataFallback(idx);
           }
-        }, 12000);
+        }, 15000);
 
       } else {
         // ---- SEARCH: Use server-side API + RSS data cards ----
@@ -2277,27 +2261,18 @@ export function getHTML() {
       }
     }
 
-    // Process Twitter embed widgets (retry until widgets.js is loaded)
-    function processTwitterEmbed() {
-      const embed = document.getElementById('xTwitterEmbed');
-      if (!embed) return;
-
-      if (window.twttr && twttr.widgets) {
-        twttr.widgets.load(embed).then(function() {
-          const timeEl = document.getElementById('xRefreshTime');
-          const statusEl = document.getElementById('xEmbedStatus');
-          if (timeEl) timeEl.textContent = 'LIVE ' + new Date().toLocaleTimeString('en-US', { hour12: false });
-          if (statusEl) {
-            const dot = statusEl.querySelector('.status-dot');
-            if (dot) dot.style.background = 'var(--accent-green)';
-          }
-          // Cancel fallback timer since embed succeeded
-          if (xEmbedFallbackTimer) clearTimeout(xEmbedFallbackTimer);
-        });
-      } else {
-        // widgets.js not loaded yet, retry in 1s
-        setTimeout(processTwitterEmbed, 1000);
+    function xIframeLoaded() {
+      const timeEl = document.getElementById('xRefreshTime');
+      const statusEl = document.getElementById('xEmbedStatus');
+      if (timeEl) timeEl.textContent = 'LIVE ' + new Date().toLocaleTimeString('en-US', { hour12: false });
+      if (statusEl) {
+        const dot = statusEl.querySelector('.status-dot');
+        if (dot) dot.style.background = 'var(--accent-green)';
       }
+    }
+
+    function xIframeFailed(idx) {
+      loadXFeedDataFallback(idx);
     }
 
     // Fallback: try server-side API, then RSS data
@@ -2305,7 +2280,6 @@ export function getHTML() {
       const item = X_ACCOUNTS[idx];
       const timeEl = document.getElementById('xRefreshTime');
 
-      // For accounts, replace the embed container; for search, use xFeedItems
       let itemsContainer;
       if (item.type === 'account') {
         itemsContainer = document.getElementById('xTwitterEmbed');
@@ -2358,10 +2332,6 @@ export function getHTML() {
           </a>\`).join('');
         if (timeEl) timeEl.textContent = 'RSS DATA';
       } else {
-        const openUrl = item.type === 'account'
-          ? \`https://x.com/\${item.handle}\`
-          : \`https://x.com/search?q=\${encodeURIComponent(item.query)}&f=live\`;
-
         itemsContainer.innerHTML = \`
           <div class="x-empty-state">
             <div style="font-size:28px;margin-bottom:10px;opacity:0.2;">&#120143;</div>
@@ -2402,11 +2372,10 @@ export function getHTML() {
     }
 
     function renderXFeed() {
-      // Only re-render if showing fallback cards (not Twitter embed)
+      // Re-render X feed with current data
       const embed = document.getElementById('xTwitterEmbed');
-      if (!embed || !embed.querySelector('iframe')) {
-        loadXFeedDataFallback(currentXTab);
-      }
+      if (embed && embed.querySelector('.x-syndication-iframe')) return; // syndication iframe is working
+      loadXFeedDataFallback(currentXTab);
     }
 
     // Refresh news data every 2 minutes for real-time feel

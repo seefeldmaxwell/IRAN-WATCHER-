@@ -2,6 +2,14 @@
 // NEWS SOURCES - Fetches from official RSS feeds and X/Twitter monitors
 // ============================================================================
 
+// ---- Fetch with timeout helper (prevents hanging on dead sources) ----
+function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...options, signal: controller.signal })
+    .finally(() => clearTimeout(timer));
+}
+
 // ---- Official News Sources (RSS Feeds) ----
 const OFFICIAL_SOURCES = [
   {
@@ -24,7 +32,7 @@ const OFFICIAL_SOURCES = [
   },
   {
     name: 'Associated Press - Middle East',
-    url: 'https://rsshub.app/apnews/topics/apf-topnews',
+    url: 'https://feedx.net/rss/ap.xml',
     category: 'official',
     icon: 'ap',
   },
@@ -103,13 +111,13 @@ async function fetchOfficialNews() {
 // ---- Parse RSS Feed ----
 async function fetchRSSFeed(source) {
   try {
-    const response = await fetch(source.url, {
+    const response = await fetchWithTimeout(source.url, {
       headers: {
         'User-Agent': 'IranWatcher/1.0 (Cloudflare Worker)',
         'Accept': 'application/rss+xml, application/xml, text/xml',
       },
       cf: { cacheTtl: 600 },
-    });
+    }, 10000);
 
     if (!response.ok) return [];
 
@@ -146,10 +154,10 @@ async function fetchGoogleNewsRSS() {
     queries.map(async (query) => {
       try {
         const url = `https://news.google.com/rss/search?q=${query}&hl=en-US&gl=US&ceid=US:en`;
-        const response = await fetch(url, {
+        const response = await fetchWithTimeout(url, {
           headers: { 'User-Agent': 'IranWatcher/1.0 (Cloudflare Worker)' },
           cf: { cacheTtl: 600 },
-        });
+        }, 10000);
 
         if (!response.ok) return [];
 
@@ -219,10 +227,10 @@ async function fetchXAccountTimelines() {
       // METHOD 1: RSSHub (fastest, most reliable)
       for (const instance of RSSHUB_INSTANCES) {
         try {
-          const response = await fetch(`${instance}/twitter/user/${handle}`, {
+          const response = await fetchWithTimeout(`${instance}/twitter/user/${handle}`, {
             headers: { 'User-Agent': 'IranWatcher/2.0' },
             cf: { cacheTtl: 300 },
-          });
+          }, 6000);
           if (!response.ok) continue;
           const text = await response.text();
           const items = parseRSSXML(text);
@@ -242,13 +250,13 @@ async function fetchXAccountTimelines() {
         } catch { continue; }
       }
 
-      // METHOD 2: Nitter RSS (limited instances)
-      for (const instance of NITTER_INSTANCES) {
+      // METHOD 2: Nitter RSS (limited instances — try only first 2)
+      for (const instance of NITTER_INSTANCES.slice(0, 2)) {
         try {
-          const response = await fetch(`${instance}/${handle}/rss`, {
+          const response = await fetchWithTimeout(`${instance}/${handle}/rss`, {
             headers: { 'User-Agent': 'Mozilla/5.0 (compatible; IranWatcher/2.0)' },
             cf: { cacheTtl: 300 },
-          });
+          }, 5000);
           if (!response.ok) continue;
           const text = await response.text();
           if (text.includes('not yet whitelisted') || text.includes('RSS reader not yet')) continue;
@@ -270,10 +278,10 @@ async function fetchXAccountTimelines() {
 
       // METHOD 3: FxTwitter API
       try {
-        const response = await fetch(`https://api.fxtwitter.com/${handle}`, {
+        const response = await fetchWithTimeout(`https://api.fxtwitter.com/${handle}`, {
           headers: { 'User-Agent': 'IranWatcher/2.0' },
           cf: { cacheTtl: 300 },
-        });
+        }, 5000);
         if (response.ok) {
           const data = await response.json();
           const tweets = data.tweets || [];
@@ -311,10 +319,10 @@ async function fetchXSearchPosts() {
       // METHOD 1: RSSHub search
       for (const instance of RSSHUB_INSTANCES) {
         try {
-          const response = await fetch(`${instance}/twitter/search/${encodedQuery}`, {
+          const response = await fetchWithTimeout(`${instance}/twitter/search/${encodedQuery}`, {
             headers: { 'User-Agent': 'IranWatcher/2.0' },
             cf: { cacheTtl: 300 },
-          });
+          }, 6000);
           if (!response.ok) continue;
           const text = await response.text();
           const items = parseRSSXML(text);
@@ -333,13 +341,13 @@ async function fetchXSearchPosts() {
         } catch { continue; }
       }
 
-      // METHOD 2: Nitter search RSS
-      for (const instance of NITTER_INSTANCES) {
+      // METHOD 2: Nitter search RSS (try only first instance to save time)
+      for (const instance of NITTER_INSTANCES.slice(0, 1)) {
         try {
-          const response = await fetch(`${instance}/search/rss?f=tweets&q=${encodedQuery}`, {
+          const response = await fetchWithTimeout(`${instance}/search/rss?f=tweets&q=${encodedQuery}`, {
             headers: { 'User-Agent': 'Mozilla/5.0 (compatible; IranWatcher/2.0)' },
             cf: { cacheTtl: 300 },
-          });
+          }, 5000);
           if (!response.ok) continue;
           const text = await response.text();
           if (text.includes('not yet whitelisted') || text.includes('RSS reader not yet')) continue;

@@ -8,14 +8,19 @@ import { getHTML } from './ui.js';
 import { fetchAllNews } from './sources.js';
 import { generateSummary, handleChatMessage } from './ai.js';
 
+// Fetch with timeout helper — prevents worker hanging on dead sources
+function fetchWithTimeout(url, options = {}, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...options, signal: controller.signal })
+    .finally(() => clearTimeout(timer));
+}
+
 // Nitter/alt-frontend instances for proxying X timelines
 const NITTER_INSTANCES = [
   'https://xcancel.com',
   'https://nitter.privacydev.net',
   'https://nitter.poast.org',
-  'https://nitter.woodland.cafe',
-  'https://nitter.1d4.us',
-  'https://nitter.lucabased.xyz',
 ];
 
 export default {
@@ -147,14 +152,21 @@ async function handleChat(request, env) {
 // Core refresh logic (used by both cron and manual refresh)
 async function refreshNewsData(env) {
   const news = await fetchAllNews();
-  const summary = await generateSummary(env, news);
   const now = new Date().toISOString();
 
+  // Cache news immediately
   await Promise.all([
     env.NEWS_CACHE.put('latest_news', JSON.stringify(news), { expirationTtl: 1800 }),
-    env.NEWS_CACHE.put('ai_summary', summary, { expirationTtl: 1800 }),
     env.NEWS_CACHE.put('last_updated', now, { expirationTtl: 1800 }),
   ]);
+
+  // Generate AI summary separately (don't let it block news caching)
+  try {
+    const summary = await generateSummary(env, news);
+    if (summary) {
+      await env.NEWS_CACHE.put('ai_summary', summary, { expirationTtl: 1800 });
+    }
+  } catch { /* summary failed but news is cached */ }
 }
 
 // ========================================================================
@@ -217,10 +229,10 @@ async function fetchTweetsForHandle(handle) {
   // METHOD 1: RSSHub Twitter user feed
   for (const instance of RSSHUB_INSTANCES) {
     try {
-      const res = await fetch(`${instance}/twitter/user/${handle}`, {
+      const res = await fetchWithTimeout(`${instance}/twitter/user/${handle}`, {
         headers: { 'User-Agent': 'IranWatcher/2.0' },
         cf: { cacheTtl: 120 },
-      });
+      }, 6000);
       if (res.ok) {
         const xml = await res.text();
         const tweets = parseRSSToTweets(xml, handle);
@@ -229,13 +241,13 @@ async function fetchTweetsForHandle(handle) {
     } catch { /* try next */ }
   }
 
-  // METHOD 2: Nitter RSS feeds
-  for (const instance of NITTER_INSTANCES) {
+  // METHOD 2: Nitter RSS feeds (reduced to first 2)
+  for (const instance of NITTER_INSTANCES.slice(0, 2)) {
     try {
-      const res = await fetch(`${instance}/${handle}/rss`, {
+      const res = await fetchWithTimeout(`${instance}/${handle}/rss`, {
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; IranWatcher/2.0)' },
         cf: { cacheTtl: 120 },
-      });
+      }, 5000);
       if (!res.ok) continue;
       const xml = await res.text();
       if (xml.includes('not yet whitelisted') || xml.includes('RSS reader not yet')) continue;
@@ -246,7 +258,7 @@ async function fetchTweetsForHandle(handle) {
 
   // METHOD 3: Twitter Syndication API — parse embedded tweet HTML
   try {
-    const res = await fetch(`https://syndication.twitter.com/srv/timeline-profile/screen-name/${handle}`, {
+    const res = await fetchWithTimeout(`https://syndication.twitter.com/srv/timeline-profile/screen-name/${handle}`, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -254,11 +266,10 @@ async function fetchTweetsForHandle(handle) {
         'Referer': 'https://x.com/',
       },
       cf: { cacheTtl: 120 },
-    });
+    }, 6000);
     if (res.ok) {
       const html = await res.text();
       if (html.length > 500 && !html.includes('not yet whitelisted')) {
-        // Extract tweet text from syndication HTML
         const tweets = [];
         const tweetBlockRegex = /<div[^>]*data-tweet-id="([^"]*)"[^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/gi;
         let m;
@@ -284,10 +295,10 @@ async function fetchTweetsForHandle(handle) {
 
   // METHOD 4: FxTwitter API
   try {
-    const res = await fetch(`https://api.fxtwitter.com/${handle}/`, {
+    const res = await fetchWithTimeout(`https://api.fxtwitter.com/${handle}/`, {
       headers: { 'User-Agent': 'IranWatcher/2.0' },
       cf: { cacheTtl: 120 },
-    });
+    }, 5000);
     if (res.ok) {
       const data = await res.json();
       const rawTweets = data.tweets || data.timeline?.entries || [];
@@ -314,10 +325,10 @@ async function fetchTweetsForSearch(query) {
   // METHOD 1: RSSHub Twitter search
   for (const instance of RSSHUB_INSTANCES) {
     try {
-      const res = await fetch(`${instance}/twitter/search/${encodedQuery}`, {
+      const res = await fetchWithTimeout(`${instance}/twitter/search/${encodedQuery}`, {
         headers: { 'User-Agent': 'IranWatcher/2.0' },
         cf: { cacheTtl: 120 },
-      });
+      }, 6000);
       if (res.ok) {
         const xml = await res.text();
         const tweets = parseRSSToTweets(xml, '');
@@ -326,13 +337,13 @@ async function fetchTweetsForSearch(query) {
     } catch { /* try next */ }
   }
 
-  // METHOD 2: Nitter search RSS
-  for (const instance of NITTER_INSTANCES) {
+  // METHOD 2: Nitter search RSS (only first instance)
+  for (const instance of NITTER_INSTANCES.slice(0, 1)) {
     try {
-      const res = await fetch(`${instance}/search/rss?f=tweets&q=${encodedQuery}`, {
+      const res = await fetchWithTimeout(`${instance}/search/rss?f=tweets&q=${encodedQuery}`, {
         headers: { 'User-Agent': 'Mozilla/5.0 (compatible; IranWatcher/2.0)' },
         cf: { cacheTtl: 120 },
-      });
+      }, 5000);
       if (!res.ok) continue;
       const xml = await res.text();
       if (xml.includes('not yet whitelisted') || xml.includes('RSS reader not yet')) continue;
@@ -422,14 +433,14 @@ async function resolveYTLiveVideoId(channel) {
 
   for (const url of urls) {
     try {
-      const response = await fetch(url, {
+      const response = await fetchWithTimeout(url, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept-Language': 'en-US,en;q=0.9',
         },
         redirect: 'follow',
         cf: { cacheTtl: 300 },
-      });
+      }, 8000);
 
       if (!response.ok) continue;
       const html = await response.text();

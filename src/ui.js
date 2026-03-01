@@ -8,7 +8,11 @@ export function getHTML() {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#04060b">
   <title>IRAN WATCHER // y12.ai</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
@@ -757,6 +761,13 @@ export function getHTML() {
       color: var(--text-primary);
     }
 
+    .x-post-desc {
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+
     .x-post-query {
       display: inline-block;
       margin-top: 6px;
@@ -767,6 +778,45 @@ export function getHTML() {
       border: 1px solid rgba(29, 155, 240, 0.2);
       letter-spacing: 1px;
       text-transform: uppercase;
+    }
+
+    .x-profile-link {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 10px 14px;
+      background: rgba(29,155,240,0.08);
+      border: 1px solid rgba(29,155,240,0.2);
+      color: #1d9bf0;
+      text-decoration: none;
+      font-size: 10px;
+      letter-spacing: 1px;
+      font-family: var(--font-mono);
+      transition: all 0.15s;
+    }
+
+    .x-profile-link:hover {
+      background: rgba(29,155,240,0.15);
+      border-color: rgba(29,155,240,0.4);
+    }
+
+    .x-empty-state {
+      text-align: center;
+      padding: 40px 20px;
+      color: var(--text-muted);
+      font-size: 11px;
+      line-height: 1.6;
+    }
+
+    /* Twitter native embed overrides */
+    #xEmbedTarget {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    #xEmbedTarget iframe {
+      max-width: 100% !important;
     }
 
     /* ======== AI CHAT PANEL ======== */
@@ -915,17 +965,20 @@ export function getHTML() {
     .footer-bar a { color: var(--accent-blue); text-decoration: none; }
     .footer-bar a:hover { color: var(--accent-cyan); }
 
-    /* ======== MOBILE NAV TOGGLE ======== */
+    /* ======== MOBILE NAV ======== */
     .mobile-nav {
       display: none;
       position: fixed;
       bottom: 0;
       left: 0;
       right: 0;
-      background: var(--bg-secondary);
+      background: linear-gradient(180deg, rgba(8,12,20,0.95), rgba(4,6,11,0.99));
       border-top: 1px solid var(--border-mid);
       z-index: 200;
       padding: 0;
+      padding-bottom: env(safe-area-inset-bottom, 0);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
     }
 
     .mobile-nav-inner {
@@ -936,34 +989,75 @@ export function getHTML() {
 
     .mobile-nav-btn {
       flex: 1;
-      padding: 10px 4px 8px;
+      padding: 12px 4px 10px;
+      min-height: 56px;
       background: none;
       border: none;
       color: var(--text-muted);
       font-family: var(--font-mono);
-      font-size: 9px;
+      font-size: 8px;
       letter-spacing: 1px;
       text-transform: uppercase;
       cursor: pointer;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 3px;
-      transition: color 0.15s;
+      justify-content: center;
+      gap: 4px;
+      transition: color 0.2s, background 0.2s;
       border-top: 2px solid transparent;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      position: relative;
     }
 
     .mobile-nav-btn .nav-icon {
-      font-size: 18px;
+      font-size: 20px;
       line-height: 1;
     }
 
     .mobile-nav-btn.active {
       color: var(--accent-cyan);
       border-top-color: var(--accent-cyan);
+      background: rgba(34, 211, 238, 0.04);
     }
 
-    .mobile-panel { display: block; }
+    .mobile-nav-btn:active {
+      background: rgba(255,255,255,0.05);
+    }
+
+    /* Mobile notification dot on nav buttons */
+    .mobile-nav-btn .nav-badge {
+      position: absolute;
+      top: 8px;
+      right: 50%;
+      transform: translateX(14px);
+      width: 6px;
+      height: 6px;
+      background: var(--accent-red);
+      border-radius: 50%;
+      animation: blink 2s infinite;
+    }
+
+    /* ======== PULL TO REFRESH ======== */
+    .pull-indicator {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, transparent, var(--accent-cyan), transparent);
+      z-index: 300;
+      animation: pullGlow 1s ease-in-out infinite;
+    }
+
+    .pull-indicator.active { display: block; }
+
+    @keyframes pullGlow {
+      0%, 100% { opacity: 0.3; }
+      50% { opacity: 1; }
+    }
 
     /* ======== RESPONSIVE - TABLET ======== */
     @media (max-width: 1024px) {
@@ -979,6 +1073,11 @@ export function getHTML() {
 
     /* ======== RESPONSIVE - MOBILE ======== */
     @media (max-width: 768px) {
+      /* Safe area support */
+      body {
+        padding-top: env(safe-area-inset-top, 0);
+      }
+
       .header-main { flex-direction: column; }
       .logo-block {
         border-right: none;
@@ -994,59 +1093,130 @@ export function getHTML() {
         padding: 8px 14px;
         gap: 8px;
       }
+      .ctrl-btn {
+        min-height: 44px;
+        padding: 8px 16px;
+        font-size: 11px;
+      }
       .classification-bar { font-size: 7px; letter-spacing: 2px; padding: 2px 0; }
 
       .dashboard {
         grid-template-columns: 1fr;
-        padding-bottom: 56px; /* room for mobile nav */
+        padding-bottom: calc(60px + env(safe-area-inset-bottom, 0));
       }
 
       .briefing-panel .panel-header { padding: 8px 12px; }
-      .briefing-content { padding: 12px 14px; font-size: 11px; max-height: 200px; }
+      .briefing-content { padding: 12px 14px; font-size: 11px; max-height: 250px; }
 
       .tldr-banner { padding: 8px 12px; gap: 10px; }
       .tldr-text { font-size: 11px; }
 
-      .ticker-banner { height: 24px; }
+      .ticker-banner { height: 26px; }
       .ticker-item { font-size: 10px; padding: 0 16px; }
       .ticker-label { font-size: 8px; padding: 0 8px; }
 
       .topic-bar {
         padding: 0 8px;
         gap: 2px;
+        -webkit-overflow-scrolling: touch;
       }
-      .topic-btn { padding: 5px 10px; font-size: 9px; }
+      .topic-btn {
+        padding: 8px 12px;
+        font-size: 9px;
+        min-height: 36px;
+      }
       .topic-label { padding: 8px 8px 8px 0; font-size: 8px; }
 
-      .feed-tabs { overflow-x: auto; }
-      .feed-tab { padding: 8px 10px; font-size: 9px; white-space: nowrap; }
+      .feed-tabs {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .feed-tab {
+        padding: 10px 12px;
+        font-size: 10px;
+        white-space: nowrap;
+        min-height: 42px;
+      }
 
-      .news-card { padding: 10px 12px; }
-      .card-title { font-size: 12px; }
-      .card-desc { font-size: 10px; }
-      .card-meta { margin-bottom: 4px; }
+      /* News cards — bigger touch targets */
+      .news-card {
+        padding: 14px 14px;
+        min-height: 60px;
+      }
+      .card-title { font-size: 13px; line-height: 1.4; }
+      .card-desc { font-size: 11px; }
+      .card-meta { margin-bottom: 6px; }
+      .source-icon { width: 24px; height: 24px; font-size: 9px; }
+      .card-tags { gap: 6px; }
+      .tag { padding: 3px 10px; font-size: 9px; }
 
-      /* Mobile: sidebar stacks below feed */
+      /* Sidebar becomes full-screen on mobile */
       .sidebar {
         border-left: none;
         border-top: 1px solid var(--border-dim);
+        min-height: 0;
       }
 
-      /* Chat panel mobile optimizations */
+      /* X feed mobile — full height */
+      .x-feed-panel {
+        min-height: calc(100vh - 180px);
+      }
+      .x-search-tabs {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .x-search-tab {
+        font-size: 10px;
+        padding: 10px 14px;
+        min-height: 40px;
+      }
+      .x-post {
+        padding: 14px 14px;
+        font-size: 13px;
+        min-height: 50px;
+      }
+      .x-post-header { gap: 8px; margin-bottom: 8px; }
+      .x-post-source { font-size: 11px; }
+      .x-post-time { font-size: 10px; }
+      .x-post-text { font-size: 13px; line-height: 1.5; }
+      .x-post-desc { font-size: 11px; }
+      .x-profile-link {
+        padding: 14px;
+        font-size: 12px;
+        min-height: 48px;
+      }
+
+      /* Chat panel mobile — full screen when active */
       .chat-panel {
         min-height: 240px;
         max-height: none;
       }
-      .chat-messages { padding: 10px; min-height: 120px; }
-      .chat-msg { font-size: 12px; max-width: 85%; padding: 8px 10px; }
-      .chat-input { font-size: 14px; padding: 12px; }
-      .chat-send { padding: 12px 14px; font-size: 11px; }
-
-      /* X feed mobile */
-      .x-feed-panel { min-height: 250px; }
-      .x-search-tabs { flex-wrap: nowrap; overflow-x: auto; }
-      .x-search-tab { font-size: 8px; padding: 6px 8px; }
-      .x-embed-frame { min-height: 350px; }
+      .chat-panel.mobile-fullscreen {
+        min-height: calc(100vh - 180px);
+        max-height: none;
+      }
+      .chat-messages {
+        padding: 12px;
+        min-height: 120px;
+        -webkit-overflow-scrolling: touch;
+      }
+      .chat-msg {
+        font-size: 14px;
+        max-width: 85%;
+        padding: 10px 14px;
+        line-height: 1.6;
+      }
+      .chat-input {
+        font-size: 16px; /* prevent iOS zoom */
+        padding: 14px;
+        min-height: 48px;
+      }
+      .chat-send {
+        padding: 14px 18px;
+        font-size: 12px;
+        min-height: 48px;
+      }
 
       /* Footer */
       .footer-bar {
@@ -1060,18 +1230,45 @@ export function getHTML() {
       /* Show mobile nav */
       .mobile-nav { display: block; }
 
-      /* Mobile panel switching */
+      /* Mobile panel switching with smooth transitions */
       .mobile-hidden { display: none !important; }
+
+      /* All scrollable areas get momentum scrolling */
+      .news-feed,
+      .briefing-content,
+      .x-feed-content,
+      .chat-messages {
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-y: contain;
+      }
     }
 
     /* ======== RESPONSIVE - SMALL MOBILE ======== */
     @media (max-width: 400px) {
       .logo-text h1 { font-size: 11px; letter-spacing: 2px; }
-      .status-indicator { font-size: 8px; padding: 4px 8px; }
-      .ctrl-btn { font-size: 9px; padding: 5px 10px; }
+      .status-indicator { font-size: 8px; padding: 6px 10px; min-height: 36px; }
+      .ctrl-btn { font-size: 10px; padding: 8px 12px; }
       .timestamp { font-size: 8px; }
-      .topic-btn { font-size: 8px; padding: 4px 8px; }
-      .chat-input { font-size: 16px; } /* prevent iOS zoom */
+      .topic-btn { font-size: 8px; padding: 6px 10px; }
+      .x-search-tab { font-size: 9px; padding: 8px 10px; }
+      .news-card { padding: 12px; }
+      .card-title { font-size: 12px; }
+      .mobile-nav-btn { min-height: 52px; font-size: 7px; }
+      .mobile-nav-btn .nav-icon { font-size: 18px; }
+    }
+
+    /* ======== RESPONSIVE - LANDSCAPE MOBILE ======== */
+    @media (max-width: 768px) and (orientation: landscape) {
+      .dashboard {
+        padding-bottom: calc(50px + env(safe-area-inset-bottom, 0));
+      }
+      .mobile-nav-btn {
+        min-height: 44px;
+        padding: 6px 4px;
+      }
+      .mobile-nav-btn .nav-icon { font-size: 16px; }
+      .briefing-content { max-height: 150px; }
+      .x-feed-panel { min-height: calc(100vh - 140px); }
     }
 
     /* ======== TLDR BANNER ======== */
@@ -1313,7 +1510,7 @@ export function getHTML() {
         <div class="x-feed-content" id="xFeedContent">
           <div class="briefing-loading">
             <div class="spinner"></div>
-            Loading X embeds...
+            Connecting to X feeds...
           </div>
         </div>
       </div>
@@ -1334,6 +1531,9 @@ export function getHTML() {
       </div>
     </div>
 
+    <!-- PULL TO REFRESH INDICATOR -->
+    <div class="pull-indicator" id="pullIndicator"></div>
+
     <!-- MOBILE BOTTOM NAV -->
     <nav class="mobile-nav">
       <div class="mobile-nav-inner">
@@ -1343,11 +1543,11 @@ export function getHTML() {
         </button>
         <button class="mobile-nav-btn" onclick="mobileSwitch('xfeed')" data-panel="xfeed">
           <span class="nav-icon">&#120143;</span>
-          X FEED
+          X LIVE
         </button>
         <button class="mobile-nav-btn" onclick="mobileSwitch('chat')" data-panel="chat">
           <span class="nav-icon">&#9993;</span>
-          AI CHAT
+          INTEL AI
         </button>
         <button class="mobile-nav-btn" onclick="mobileSwitch('brief')" data-panel="brief">
           <span class="nav-icon">&#9733;</span>
@@ -1400,7 +1600,7 @@ export function getHTML() {
       buildXSearchTabs();
     });
 
-    setInterval(loadNews, 5 * 60 * 1000);
+    // Primary refresh interval (overridden by 2-min X feed interval below)
 
     // ========================================================================
     // NEWS LOADING
@@ -1582,9 +1782,19 @@ export function getHTML() {
     }
 
     // ========================================================================
-    // X / TWITTER EMBEDDED FEED
+    // X / TWITTER EMBEDDED FEED — Hybrid: native embed + server data fallback
     // ========================================================================
     let currentXTab = 0;
+    let twttrReady = false;
+    let embedFailedAccounts = new Set();
+
+    // Track when twttr (Twitter widgets.js) is ready
+    window.twttr = window.twttr || {};
+    window.twttr.ready = window.twttr.ready || function(fn) {
+      if (window.twttr && window.twttr.widgets) { fn(window.twttr); twttrReady = true; }
+      else { window.__twttr_ready_queue = window.__twttr_ready_queue || []; window.__twttr_ready_queue.push(fn); }
+    };
+    window.twttr.ready(function() { twttrReady = true; });
 
     function buildXSearchTabs() {
       const container = document.getElementById('xSearchTabs');
@@ -1606,88 +1816,165 @@ export function getHTML() {
       const unofficial = newsData.unofficial || [];
 
       if (item.type === 'account') {
-        // Filter posts from this specific account handle
-        const accountPosts = unofficial.filter(post =>
+        // Try native Twitter timeline embed first, with server-data fallback
+        const hasServerData = unofficial.some(post =>
           post.handle === item.handle || (post.source && post.source === '@' + item.handle)
         );
+        const embedFailed = embedFailedAccounts.has(item.handle);
 
-        let html = \`
-          <div style="padding:10px 14px;border-bottom:1px solid var(--border-dim);">
-            <a href="https://x.com/\${item.handle}" target="_blank" rel="noopener noreferrer"
-               style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:rgba(29,155,240,0.08);border:1px solid rgba(29,155,240,0.2);color:#1d9bf0;text-decoration:none;font-size:10px;letter-spacing:1px;font-family:var(--font-mono);justify-content:center;">
-              VIEW @\${item.handle.toUpperCase()} ON X &rarr;
-            </a>
-          </div>\`;
-
-        if (accountPosts.length > 0) {
-          html += '<div class="x-feed-items">' + accountPosts.filter(p => !p.isMonitoring).slice(0, 20).map(post => \`
-            <a href="\${escapeHtml(post.link)}" target="_blank" rel="noopener noreferrer" class="x-post">
-              <div class="x-post-header">
-                <span class="x-post-source">@\${escapeHtml(item.handle)}</span>
-                <span class="x-post-time">\${formatTime(post.date)}</span>
-              </div>
-              <div class="x-post-text">\${escapeHtml(post.title)}</div>
-              \${post.description && post.description !== post.title ? '<div style="font-size:10px;color:var(--text-muted);margin-top:4px;line-height:1.4;">' + escapeHtml(post.description).slice(0, 200) + '</div>' : ''}
-            </a>\`).join('') + '</div>';
-        } else {
-          html += \`
-            <div style="text-align:center;padding:40px 20px;color:var(--text-muted);font-size:11px;line-height:1.6;">
-              <div style="font-size:20px;margin-bottom:8px;opacity:0.3;">&#120143;</div>
-              No posts loaded from @\${escapeHtml(item.handle)} yet.<br>
-              <span style="font-size:10px;">Posts will appear here once fetched from X.</span><br>
+        if (!embedFailed) {
+          // Attempt native Twitter embed
+          container.innerHTML = \`
+            <div class="x-embed-status" style="display:flex;align-items:center;gap:6px;padding:6px 14px;background:rgba(29,155,240,0.04);border-bottom:1px solid var(--border-dim);font-size:9px;color:var(--text-muted);font-family:var(--font-mono);">
+              <span class="status-dot" style="width:5px;height:5px;background:#1d9bf0;border-radius:50%;"></span>
+              LOADING NATIVE X TIMELINE — @\${item.handle.toUpperCase()}
+            </div>
+            <div id="xEmbedTarget" style="flex:1;overflow-y:auto;">
+              <a class="twitter-timeline"
+                 data-theme="dark"
+                 data-chrome="noheader nofooter noborders transparent"
+                 data-height="600"
+                 href="https://twitter.com/\${item.handle}">
+                <div class="briefing-loading" style="padding:30px;">
+                  <div class="spinner"></div>
+                  Connecting to X...
+                </div>
+              </a>
+            </div>
+            <div style="padding:6px 14px;border-top:1px solid var(--border-dim);">
               <a href="https://x.com/\${item.handle}" target="_blank" rel="noopener noreferrer"
-                 style="color:#1d9bf0;text-decoration:none;margin-top:8px;display:inline-block;">
-                View @\${escapeHtml(item.handle)} directly on X &rarr;
+                 style="display:flex;align-items:center;justify-content:center;gap:6px;padding:6px 10px;background:rgba(29,155,240,0.06);border:1px solid rgba(29,155,240,0.15);color:#1d9bf0;text-decoration:none;font-size:9px;letter-spacing:1px;font-family:var(--font-mono);">
+                OPEN @\${item.handle.toUpperCase()} ON X &rarr;
               </a>
             </div>\`;
-        }
 
-        container.innerHTML = html;
-      } else {
-        // Search query — show link to live X search + matched posts
-        const encodedQuery = encodeURIComponent(item.query);
-        const q = item.query.toLowerCase().split(' OR ')[0].trim();
-        const xItems = unofficial.filter(post => {
-          if (post.isMonitoring) return false;
-          const text = ((post.title || '') + ' ' + (post.source || '') + ' ' + (post.searchQuery || '')).toLowerCase();
-          return text.includes(q) || q.split(' ').some(w => w.length > 3 && text.includes(w));
-        });
+          // Ask Twitter to render the embed
+          if (twttrReady && window.twttr && window.twttr.widgets) {
+            window.twttr.widgets.load(document.getElementById('xEmbedTarget'));
+          }
 
-        let html = \`
-          <div style="padding:10px 14px;border-bottom:1px solid var(--border-dim);">
-            <a href="https://x.com/search?q=\${encodedQuery}&f=live" target="_blank" rel="noopener noreferrer"
-               style="display:flex;align-items:center;gap:8px;padding:8px 14px;background:rgba(29,155,240,0.08);border:1px solid rgba(29,155,240,0.2);color:#1d9bf0;text-decoration:none;font-size:10px;letter-spacing:1px;font-family:var(--font-mono);justify-content:center;">
-              OPEN LIVE X SEARCH: \${escapeHtml(item.query)} &rarr;
-            </a>
-          </div>\`;
-
-        if (xItems.length > 0) {
-          html += '<div class="x-feed-items">' + xItems.slice(0, 20).map(post => \`
-            <a href="\${escapeHtml(post.link)}" target="_blank" rel="noopener noreferrer" class="x-post">
-              <div class="x-post-header">
-                <span class="x-post-source">\${escapeHtml(post.source || 'X')}</span>
-                <span class="x-post-time">\${formatTime(post.date)}</span>
-              </div>
-              <div class="x-post-text">\${escapeHtml(post.title)}</div>
-              \${post.description && post.description !== post.title ? '<div style="font-size:10px;color:var(--text-muted);margin-top:4px;line-height:1.4;">' + escapeHtml(post.description).slice(0, 200) + '</div>' : ''}
-            </a>\`).join('') + '</div>';
+          // Fallback timer: if embed doesn't render in 8s, switch to server data
+          setTimeout(() => {
+            const target = document.getElementById('xEmbedTarget');
+            if (!target) return;
+            // Check if Twitter actually rendered an iframe
+            const iframe = target.querySelector('iframe.twitter-timeline-rendered, iframe[id^="twitter-widget"]');
+            if (!iframe) {
+              embedFailedAccounts.add(item.handle);
+              if (currentXTab === idx) renderXEmbedFallback(idx);
+            } else {
+              // Update status to show it's live
+              const status = container.querySelector('.x-embed-status');
+              if (status) status.innerHTML = '<span class="status-dot" style="width:5px;height:5px;background:var(--accent-green);border-radius:50%;animation:blink 2s infinite;"></span> LIVE NATIVE X TIMELINE — @' + item.handle.toUpperCase();
+            }
+          }, 8000);
         } else {
-          html += \`
-            <div style="text-align:center;padding:40px 20px;color:var(--text-muted);font-size:11px;line-height:1.6;">
-              <div style="font-size:20px;margin-bottom:8px;opacity:0.3;">&#120143;</div>
-              No X posts found for <strong style="color:#1d9bf0">\${escapeHtml(item.query)}</strong> yet.<br>
-              <span style="font-size:10px;">Click above to view live results on X.</span>
-            </div>\`;
+          renderXEmbedFallback(idx);
         }
-
-        container.innerHTML = html;
+      } else {
+        // Search query — show link to live X search + matched posts from server
+        renderXSearchFallback(idx);
       }
     }
 
+    function renderXEmbedFallback(idx) {
+      const container = document.getElementById('xFeedContent');
+      const item = X_ACCOUNTS[idx];
+      const unofficial = newsData.unofficial || [];
+      const accountPosts = unofficial.filter(post =>
+        post.handle === item.handle || (post.source && post.source === '@' + item.handle)
+      ).filter(p => !p.isMonitoring);
+
+      let html = \`
+        <div class="x-embed-status" style="display:flex;align-items:center;gap:6px;padding:6px 14px;background:rgba(29,155,240,0.04);border-bottom:1px solid var(--border-dim);font-size:9px;color:var(--text-muted);font-family:var(--font-mono);">
+          <span style="width:5px;height:5px;background:var(--accent-amber);border-radius:50;"></span>
+          SERVER-FETCHED — \${accountPosts.length} POSTS FROM @\${item.handle.toUpperCase()}
+        </div>
+        <div style="padding:8px 14px;border-bottom:1px solid var(--border-dim);">
+          <a href="https://x.com/\${item.handle}" target="_blank" rel="noopener noreferrer"
+             class="x-profile-link">
+            VIEW @\${item.handle.toUpperCase()} LIVE ON X &rarr;
+          </a>
+        </div>\`;
+
+      if (accountPosts.length > 0) {
+        html += '<div class="x-feed-items">' + accountPosts.slice(0, 25).map(post => \`
+          <a href="\${escapeHtml(post.link)}" target="_blank" rel="noopener noreferrer" class="x-post">
+            <div class="x-post-header">
+              <span class="x-post-source">@\${escapeHtml(item.handle)}</span>
+              <span class="x-post-time">\${formatTime(post.date)}</span>
+            </div>
+            <div class="x-post-text">\${escapeHtml(post.title)}</div>
+            \${post.description && post.description !== post.title ? '<div class="x-post-desc">' + escapeHtml(post.description).slice(0, 250) + '</div>' : ''}
+          </a>\`).join('') + '</div>';
+      } else {
+        html += \`
+          <div class="x-empty-state">
+            <div style="font-size:28px;margin-bottom:10px;opacity:0.2;">&#120143;</div>
+            <strong>@\${escapeHtml(item.handle)}</strong><br>
+            <span style="font-size:10px;margin-top:4px;display:block;">Fetching posts via RSS bridges. If none appear, view directly on X.</span>
+            <a href="https://x.com/\${item.handle}" target="_blank" rel="noopener noreferrer"
+               style="color:#1d9bf0;text-decoration:none;margin-top:12px;display:inline-block;font-size:11px;">
+              Open @\${escapeHtml(item.handle)} on X &rarr;
+            </a>
+          </div>\`;
+      }
+
+      container.innerHTML = html;
+    }
+
+    function renderXSearchFallback(idx) {
+      const container = document.getElementById('xFeedContent');
+      const item = X_ACCOUNTS[idx];
+      const unofficial = newsData.unofficial || [];
+      const encodedQuery = encodeURIComponent(item.query);
+      const q = item.query.toLowerCase().split(' OR ')[0].trim();
+      const xItems = unofficial.filter(post => {
+        if (post.isMonitoring) return false;
+        const text = ((post.title || '') + ' ' + (post.source || '') + ' ' + (post.searchQuery || '')).toLowerCase();
+        return text.includes(q) || q.split(' ').some(w => w.length > 3 && text.includes(w));
+      });
+
+      let html = \`
+        <div class="x-embed-status" style="display:flex;align-items:center;gap:6px;padding:6px 14px;background:rgba(29,155,240,0.04);border-bottom:1px solid var(--border-dim);font-size:9px;color:var(--text-muted);font-family:var(--font-mono);">
+          <span style="width:5px;height:5px;background:var(--accent-amber);border-radius:50%;"></span>
+          X SEARCH — \${xItems.length} RESULTS FOR "\${escapeHtml(item.query).toUpperCase()}"
+        </div>
+        <div style="padding:8px 14px;border-bottom:1px solid var(--border-dim);">
+          <a href="https://x.com/search?q=\${encodedQuery}&f=live" target="_blank" rel="noopener noreferrer"
+             class="x-profile-link">
+            OPEN LIVE X SEARCH: \${escapeHtml(item.query)} &rarr;
+          </a>
+        </div>\`;
+
+      if (xItems.length > 0) {
+        html += '<div class="x-feed-items">' + xItems.slice(0, 25).map(post => \`
+          <a href="\${escapeHtml(post.link)}" target="_blank" rel="noopener noreferrer" class="x-post">
+            <div class="x-post-header">
+              <span class="x-post-source">\${escapeHtml(post.source || 'X')}</span>
+              <span class="x-post-time">\${formatTime(post.date)}</span>
+            </div>
+            <div class="x-post-text">\${escapeHtml(post.title)}</div>
+            \${post.description && post.description !== post.title ? '<div class="x-post-desc">' + escapeHtml(post.description).slice(0, 250) + '</div>' : ''}
+          </a>\`).join('') + '</div>';
+      } else {
+        html += \`
+          <div class="x-empty-state">
+            <div style="font-size:28px;margin-bottom:10px;opacity:0.2;">&#120143;</div>
+            <strong style="color:#1d9bf0">\${escapeHtml(item.query)}</strong><br>
+            <span style="font-size:10px;margin-top:4px;display:block;">Click above to view live results directly on X.</span>
+          </div>\`;
+      }
+
+      container.innerHTML = html;
+    }
+
     function renderXFeed() {
-      // Re-render the current X tab (called when news data updates)
       renderXEmbed(currentXTab);
     }
+
+    // More frequent refresh for real-time feel (every 2 min)
+    setInterval(loadNews, 2 * 60 * 1000);
 
     // ========================================================================
     // AI CHAT
@@ -1864,12 +2151,13 @@ export function getHTML() {
     }
 
     // ========================================================================
-    // MOBILE PANEL SWITCHING
+    // MOBILE PANEL SWITCHING + GESTURES
     // ========================================================================
     let currentMobilePanel = 'feed';
+    const MOBILE_PANELS = ['feed', 'xfeed', 'chat', 'brief'];
 
     function mobileSwitch(panel) {
-      if (window.innerWidth > 768) return; // only on mobile
+      if (window.innerWidth > 768) return;
       currentMobilePanel = panel;
 
       // Update nav buttons
@@ -1877,7 +2165,7 @@ export function getHTML() {
         b.classList.toggle('active', b.dataset.panel === panel);
       });
 
-      // Get panel elements
+      // Get all panel elements
       const feedArea = document.querySelector('.feed-area');
       const sidebar = document.querySelector('.sidebar');
       const briefing = document.querySelector('.briefing-panel');
@@ -1887,12 +2175,13 @@ export function getHTML() {
       const tldr = document.getElementById('tldrBanner');
       const ticker = document.getElementById('tickerBanner');
 
-      // Reset all
+      // Hide everything first
       [feedArea, sidebar, briefing, topicBar, tldr, ticker].forEach(el => {
-        if (el) el.classList.remove('mobile-hidden');
+        if (el) el.classList.add('mobile-hidden');
       });
+      if (chatPanel) chatPanel.classList.remove('mobile-fullscreen');
 
-      // Show chat messages when switching to chat
+      // Show chat elements
       if (chatPanel) {
         const msgs = chatPanel.querySelector('.chat-messages');
         const input = chatPanel.querySelector('.chat-input-area');
@@ -1902,56 +2191,167 @@ export function getHTML() {
 
       switch (panel) {
         case 'feed':
+          // Show feed + topic bar + ticker
+          if (feedArea) feedArea.classList.remove('mobile-hidden');
+          if (topicBar) topicBar.classList.remove('mobile-hidden');
+          if (ticker) ticker.classList.remove('mobile-hidden');
           if (sidebar) sidebar.classList.add('mobile-hidden');
-          if (briefing) briefing.classList.add('mobile-hidden');
           break;
+
         case 'xfeed':
-          if (feedArea) feedArea.classList.add('mobile-hidden');
-          if (briefing) briefing.classList.add('mobile-hidden');
-          if (topicBar) topicBar.classList.add('mobile-hidden');
-          if (tldr) tldr.classList.add('mobile-hidden');
-          if (ticker) ticker.classList.add('mobile-hidden');
-          // Show only X panel, hide chat
+          // Show only X feed panel full-screen
+          if (sidebar) sidebar.classList.remove('mobile-hidden');
           if (chatPanel) chatPanel.classList.add('mobile-hidden');
           break;
+
         case 'chat':
-          if (feedArea) feedArea.classList.add('mobile-hidden');
-          if (briefing) briefing.classList.add('mobile-hidden');
-          if (topicBar) topicBar.classList.add('mobile-hidden');
-          if (tldr) tldr.classList.add('mobile-hidden');
-          if (ticker) ticker.classList.add('mobile-hidden');
-          // Show only chat, hide X panel
+          // Show chat panel full-screen
+          if (sidebar) sidebar.classList.remove('mobile-hidden');
           if (xPanel) xPanel.classList.add('mobile-hidden');
-          // Expand chat to full height
           if (chatPanel) {
+            chatPanel.classList.add('mobile-fullscreen');
             chatPanel.style.minHeight = 'calc(100vh - 160px)';
             chatPanel.style.maxHeight = 'none';
           }
+          setTimeout(() => {
+            const input = document.getElementById('chatInput');
+            if (input) input.focus();
+          }, 150);
           break;
+
         case 'brief':
-          if (feedArea) feedArea.classList.add('mobile-hidden');
-          if (sidebar) sidebar.classList.add('mobile-hidden');
+          // Show briefing + TLDR
+          if (briefing) briefing.classList.remove('mobile-hidden');
+          if (tldr) tldr.classList.remove('mobile-hidden');
           break;
       }
 
-      // Reset chat panel height when not in chat mode
+      // Reset chat panel size when not chat
       if (panel !== 'chat' && chatPanel) {
         chatPanel.style.minHeight = '';
         chatPanel.style.maxHeight = '';
       }
 
-      // Focus chat input when switching to chat
-      if (panel === 'chat') {
-        setTimeout(() => {
-          const input = document.getElementById('chatInput');
-          if (input) input.focus();
-        }, 100);
-      }
+      // Scroll to top of visible content
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
+
+    // ========================================================================
+    // MOBILE SWIPE GESTURES
+    // ========================================================================
+    (function() {
+      let touchStartX = 0;
+      let touchStartY = 0;
+      let touchStartTime = 0;
+      const MIN_SWIPE_DIST = 60;
+      const MAX_SWIPE_TIME = 400;
+
+      document.addEventListener('touchstart', function(e) {
+        if (window.innerWidth > 768) return;
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        touchStartTime = Date.now();
+      }, { passive: true });
+
+      document.addEventListener('touchend', function(e) {
+        if (window.innerWidth > 768) return;
+        const deltaX = e.changedTouches[0].clientX - touchStartX;
+        const deltaY = e.changedTouches[0].clientY - touchStartY;
+        const elapsed = Date.now() - touchStartTime;
+
+        // Only horizontal swipes (not vertical scrolling)
+        if (elapsed > MAX_SWIPE_TIME) return;
+        if (Math.abs(deltaY) > Math.abs(deltaX)) return;
+        if (Math.abs(deltaX) < MIN_SWIPE_DIST) return;
+
+        const currentIdx = MOBILE_PANELS.indexOf(currentMobilePanel);
+        if (deltaX < 0 && currentIdx < MOBILE_PANELS.length - 1) {
+          // Swipe left → next panel
+          mobileSwitch(MOBILE_PANELS[currentIdx + 1]);
+        } else if (deltaX > 0 && currentIdx > 0) {
+          // Swipe right → previous panel
+          mobileSwitch(MOBILE_PANELS[currentIdx - 1]);
+        }
+      }, { passive: true });
+    })();
+
+    // ========================================================================
+    // PULL TO REFRESH
+    // ========================================================================
+    (function() {
+      let pullStartY = 0;
+      let isPulling = false;
+      const PULL_THRESHOLD = 80;
+
+      document.addEventListener('touchstart', function(e) {
+        if (window.innerWidth > 768) return;
+        if (window.scrollY === 0) {
+          pullStartY = e.touches[0].clientY;
+          isPulling = true;
+        }
+      }, { passive: true });
+
+      document.addEventListener('touchmove', function(e) {
+        if (!isPulling || window.innerWidth > 768) return;
+        const deltaY = e.touches[0].clientY - pullStartY;
+        const indicator = document.getElementById('pullIndicator');
+        if (deltaY > 20 && window.scrollY === 0) {
+          indicator.classList.add('active');
+        } else {
+          indicator.classList.remove('active');
+        }
+      }, { passive: true });
+
+      document.addEventListener('touchend', function(e) {
+        if (!isPulling || window.innerWidth > 768) return;
+        const deltaY = e.changedTouches[0].clientY - pullStartY;
+        const indicator = document.getElementById('pullIndicator');
+        isPulling = false;
+        indicator.classList.remove('active');
+
+        if (deltaY > PULL_THRESHOLD && window.scrollY === 0) {
+          // Trigger refresh
+          indicator.classList.add('active');
+          refreshData().finally(() => {
+            indicator.classList.remove('active');
+          });
+        }
+      }, { passive: true });
+    })();
 
     function showError(msg) { console.error('[IRAN WATCHER]', msg); }
   </script>
 
+  <!-- Twitter widgets.js for native timeline embeds -->
+  <script>
+    window.twttr = (function(d, s, id) {
+      var js, fjs = d.getElementsByTagName(s)[0], t = window.twttr || {};
+      if (d.getElementById(id)) return t;
+      js = d.createElement(s); js.id = id;
+      js.src = "https://platform.twitter.com/widgets.js";
+      js.async = true;
+      fjs.parentNode.insertBefore(js, fjs);
+      t._e = [];
+      t.ready = function(f) {
+        t._e.push(f);
+      };
+      return t;
+    }(document, "script", "twitter-wjs"));
+
+    window.twttr.ready(function(twttr) {
+      twttrReady = true;
+      // Process any queued ready callbacks
+      if (window.__twttr_ready_queue) {
+        window.__twttr_ready_queue.forEach(function(fn) { fn(twttr); });
+        window.__twttr_ready_queue = [];
+      }
+      // Re-render current X tab to use native embed
+      if (typeof renderXEmbed === 'function') {
+        embedFailedAccounts.clear();
+        renderXEmbed(currentXTab);
+      }
+    });
+  </script>
 </body>
 </html>`;
 }

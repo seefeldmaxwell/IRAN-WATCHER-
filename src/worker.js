@@ -25,9 +25,12 @@ export default {
       return handleChat(request, env);
     }
 
-    // Serve the main page
+    // Serve the main page with permissive headers for Twitter embeds
     return new Response(getHTML(), {
-      headers: { 'Content-Type': 'text/html;charset=UTF-8' },
+      headers: {
+        'Content-Type': 'text/html;charset=UTF-8',
+        'Content-Security-Policy': "default-src 'self' 'unsafe-inline' 'unsafe-eval' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://platform.twitter.com https://cdn.syndication.twimg.com; frame-src https://platform.twitter.com https://syndication.twitter.com https://x.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://platform.twitter.com; font-src https://fonts.gstatic.com; img-src * data: blob:; connect-src 'self' https://platform.twitter.com https://syndication.twitter.com;",
+      },
     });
   },
 

@@ -1146,29 +1146,26 @@ export function getHTML() {
       color-scheme: dark;
     }
 
-    /* Twitter syndication embed container */
-    .x-twitter-embed {
+    /* X feed items container */
+    .x-feed-items {
       flex: 1;
       overflow-y: auto;
       background: var(--bg-primary);
       min-height: 400px;
-      position: relative;
     }
 
-    /* Direct syndication iframe — fills container */
-    .x-syndication-iframe {
-      width: 100%;
-      height: 100%;
-      min-height: 500px;
-      border: none;
-      background: transparent;
-      color-scheme: dark;
+    /* X post card with avatar */
+    .x-post .x-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      margin-right: 8px;
+      flex-shrink: 0;
     }
 
-    /* Force any Twitter iframe to fill container */
-    .x-twitter-embed iframe {
-      width: 100% !important;
-      border: none !important;
+    .x-post .x-post-header {
+      display: flex;
+      align-items: center;
     }
 
     /* ======== AI CHAT PANEL ======== */
@@ -2174,9 +2171,9 @@ export function getHTML() {
     }
 
     // ========================================================================
-    // X / TWITTER FEED — Direct client-side syndication iframe
-    // Browser fetches directly from Twitter, bypassing server-side proxy issues.
-    // Fallback: server-side API + RSS data cards.
+    // X / TWITTER FEED — Server-side API (X API v2 with Bearer Token)
+    // Set X_BEARER_TOKEN secret via: npx wrangler secret put X_BEARER_TOKEN
+    // Falls back to RSS sources if API key not configured.
     // ========================================================================
     let currentXTab = 0;
     let xAutoRefreshTimer = null;
@@ -2186,16 +2183,16 @@ export function getHTML() {
       container.innerHTML = X_ACCOUNTS.map((item, i) =>
         \`<button class="x-search-tab \${i === 0 ? 'active' : ''}" onclick="switchXTab(\${i})">\${escapeHtml(item.label)}</button>\`
       ).join('');
-      renderXEmbed(0);
+      loadXFeedData(0);
     }
 
     function switchXTab(idx) {
       currentXTab = idx;
       document.querySelectorAll('.x-search-tab').forEach((t, i) => t.classList.toggle('active', i === idx));
-      renderXEmbed(idx);
+      loadXFeedData(idx);
     }
 
-    function renderXEmbed(idx) {
+    async function loadXFeedData(idx) {
       const container = document.getElementById('xFeedContent');
       const item = X_ACCOUNTS[idx];
 
@@ -2205,105 +2202,42 @@ export function getHTML() {
         ? \`https://x.com/\${item.handle}\`
         : \`https://x.com/search?q=\${encodeURIComponent(item.query)}&f=live\`;
 
-      if (item.type === 'account') {
-        // ---- ACCOUNT: Direct syndication iframe (browser fetches from Twitter) ----
-        const statusLabel = \`LIVE TIMELINE — @\${item.handle.toUpperCase()}\`;
-        const syndicationUrl = \`https://syndication.twitter.com/srv/timeline-profile/screen-name/\${item.handle}?dnt=true&embedId=twitter-widget-\${idx}&frame=false&hideBorder=true&hideFooter=true&hideHeader=true&hideScrollBar=false&lang=en&theme=dark&transparent=true\`;
+      const statusLabel = item.type === 'account'
+        ? \`LIVE TIMELINE — @\${item.handle.toUpperCase()}\`
+        : \`LIVE SEARCH — "\${escapeHtml(item.query).toUpperCase()}"\`;
 
-        container.innerHTML = \`
-          <div class="x-embed-status" id="xEmbedStatus">
-            <span class="status-dot" style="width:5px;height:5px;background:#1d9bf0;border-radius:50%;animation:blink 2s infinite;"></span>
-            <span>\${statusLabel}</span>
-            <span style="margin-left:auto;font-size:8px;opacity:0.6;" id="xRefreshTime">CONNECTING...</span>
-          </div>
-          <div class="x-twitter-embed" id="xTwitterEmbed">
-            <iframe src="\${syndicationUrl}"
-              class="x-syndication-iframe"
-              sandbox="allow-same-origin allow-scripts allow-popups allow-popups-to-escape-sandbox"
-              loading="lazy"
-              onload="xIframeLoaded()"
-              onerror="xIframeFailed(\${idx})">
-            </iframe>
-          </div>
-          <div class="x-iframe-footer">
-            <button class="x-refresh-btn" onclick="renderXEmbed(\${idx})">&#8635; REFRESH</button>
-            <a href="\${openUrl}" target="_blank" rel="noopener noreferrer" class="x-open-btn">OPEN ON X &rarr;</a>
-          </div>\`;
+      container.innerHTML = \`
+        <div class="x-embed-status" id="xEmbedStatus">
+          <span class="status-dot" style="width:5px;height:5px;background:#1d9bf0;border-radius:50%;animation:blink 2s infinite;"></span>
+          <span>\${statusLabel}</span>
+          <span style="margin-left:auto;font-size:8px;opacity:0.6;" id="xRefreshTime">FETCHING...</span>
+        </div>
+        <div class="x-feed-items" id="xFeedItems" style="flex:1;overflow-y:auto;">
+          <div class="briefing-loading"><div class="spinner"></div>Loading X feed...</div>
+        </div>
+        <div class="x-iframe-footer">
+          <button class="x-refresh-btn" onclick="loadXFeedData(\${idx})">&#8635; REFRESH</button>
+          <a href="\${openUrl}" target="_blank" rel="noopener noreferrer" class="x-open-btn">VIEW ON X &rarr;</a>
+        </div>\`;
 
-        // Fallback: if iframe hasn't loaded or is empty after 15s, try API
-        setTimeout(() => {
-          const timeEl = document.getElementById('xRefreshTime');
-          if (timeEl && timeEl.textContent === 'CONNECTING...') {
-            loadXFeedDataFallback(idx);
-          }
-        }, 15000);
-
-      } else {
-        // ---- SEARCH: Use server-side API + RSS data cards ----
-        const statusLabel = \`LIVE SEARCH — "\${escapeHtml(item.query).toUpperCase()}"\`;
-
-        container.innerHTML = \`
-          <div class="x-embed-status" id="xEmbedStatus">
-            <span class="status-dot" style="width:5px;height:5px;background:#1d9bf0;border-radius:50%;animation:blink 2s infinite;"></span>
-            <span>\${statusLabel}</span>
-            <span style="margin-left:auto;font-size:8px;opacity:0.6;" id="xRefreshTime">LOADING...</span>
-          </div>
-          <div class="x-feed-items" id="xFeedItems" style="flex:1;overflow-y:auto;">
-            <div class="briefing-loading"><div class="spinner"></div>Searching X posts...</div>
-          </div>
-          <div class="x-iframe-footer">
-            <button class="x-refresh-btn" onclick="loadXFeedDataFallback(\${idx})">&#8635; REFRESH</button>
-            <a href="\${openUrl}" target="_blank" rel="noopener noreferrer" class="x-open-btn">SEARCH ON X &rarr;</a>
-          </div>\`;
-
-        loadXFeedDataFallback(idx);
-        xAutoRefreshTimer = setInterval(() => loadXFeedDataFallback(idx), 2 * 60 * 1000);
-      }
-    }
-
-    function xIframeLoaded() {
-      const timeEl = document.getElementById('xRefreshTime');
-      const statusEl = document.getElementById('xEmbedStatus');
-      if (timeEl) timeEl.textContent = 'LIVE ' + new Date().toLocaleTimeString('en-US', { hour12: false });
-      if (statusEl) {
-        const dot = statusEl.querySelector('.status-dot');
-        if (dot) dot.style.background = 'var(--accent-green)';
-      }
-    }
-
-    function xIframeFailed(idx) {
-      loadXFeedDataFallback(idx);
-    }
-
-    // Fallback: try server-side API, then RSS data
-    async function loadXFeedDataFallback(idx) {
-      const item = X_ACCOUNTS[idx];
+      const itemsContainer = document.getElementById('xFeedItems');
       const timeEl = document.getElementById('xRefreshTime');
 
-      let itemsContainer;
-      if (item.type === 'account') {
-        itemsContainer = document.getElementById('xTwitterEmbed');
-      } else {
-        itemsContainer = document.getElementById('xFeedItems');
-      }
-
-      if (!itemsContainer) return;
-      if (timeEl) timeEl.textContent = 'FETCHING...';
-
-      // Try server-side API first
+      // Fetch from server API (which uses X API v2 or RSS fallbacks)
       try {
-        const url = item.type === 'account'
+        const apiUrl = item.type === 'account'
           ? \`/api/x-timeline/\${encodeURIComponent(item.handle)}\`
           : \`/api/x-search/\${encodeURIComponent(item.query)}\`;
 
-        const res = await fetch(url);
+        const res = await fetch(apiUrl);
         const data = await res.json();
 
         if (data.success && data.tweets && data.tweets.length > 0) {
-          renderTweetCards(itemsContainer, data.tweets, timeEl, 'API');
+          renderTweetCards(itemsContainer, data.tweets, timeEl, data.source === 'x-api' ? 'X API' : (data.source === 'cache' ? 'CACHED' : 'RSS'));
+          xAutoRefreshTimer = setInterval(() => loadXFeedData(idx), 2 * 60 * 1000);
           return;
         }
-      } catch { /* fall through to RSS data */ }
+      } catch { /* fall through */ }
 
       // Fallback: use RSS data from news feed
       const unofficial = newsData.unofficial || [];
@@ -2330,18 +2264,21 @@ export function getHTML() {
             <div class="x-post-text">\${escapeHtml(post.title)}</div>
             \${post.description && post.description !== post.title ? '<div class="x-post-desc">' + escapeHtml(post.description).slice(0, 250) + '</div>' : ''}
           </a>\`).join('');
-        if (timeEl) timeEl.textContent = 'RSS DATA';
+        if (timeEl) timeEl.textContent = 'NEWS DATA';
       } else {
         itemsContainer.innerHTML = \`
           <div class="x-empty-state">
             <div style="font-size:28px;margin-bottom:10px;opacity:0.2;">&#120143;</div>
-            <div style="margin-bottom:8px;">Waiting for X data...</div>
-            <div style="font-size:10px;color:var(--text-muted);margin-bottom:16px;">Server-side sources temporarily unavailable</div>
+            <div style="margin-bottom:8px;">X API key required</div>
+            <div style="font-size:10px;color:var(--text-muted);margin-bottom:12px;line-height:1.6;">
+              Run: <span style="color:var(--accent-cyan)">npx wrangler secret put X_BEARER_TOKEN</span><br>
+              Then paste your X/Twitter API Bearer Token
+            </div>
             <a href="\${openUrl}" target="_blank" rel="noopener noreferrer" class="x-profile-link">
               VIEW ON X &rarr;
             </a>
           </div>\`;
-        if (timeEl) timeEl.textContent = 'STANDBY';
+        if (timeEl) timeEl.textContent = 'NO API KEY';
       }
 
       const statusEl = document.getElementById('xEmbedStatus');
@@ -2349,12 +2286,15 @@ export function getHTML() {
         const dot = statusEl.querySelector('.status-dot');
         if (dot) dot.style.background = posts.length > 0 ? 'var(--accent-amber)' : 'var(--accent-red)';
       }
+
+      xAutoRefreshTimer = setInterval(() => loadXFeedData(idx), 2 * 60 * 1000);
     }
 
     function renderTweetCards(container, tweets, timeEl, source) {
       container.innerHTML = tweets.map(tweet => \`
         <a href="\${escapeHtml(tweet.url)}" target="_blank" rel="noopener noreferrer" class="x-post">
           <div class="x-post-header">
+            \${tweet.avatar ? \`<img src="\${escapeHtml(tweet.avatar)}" class="x-avatar" onerror="this.style.display='none'">\` : ''}
             <span class="x-post-source">@\${escapeHtml(tweet.handle || tweet.author || '')}</span>
             <span class="x-post-time">\${formatTime(tweet.date)}</span>
           </div>
@@ -2372,10 +2312,7 @@ export function getHTML() {
     }
 
     function renderXFeed() {
-      // Re-render X feed with current data
-      const embed = document.getElementById('xTwitterEmbed');
-      if (embed && embed.querySelector('.x-syndication-iframe')) return; // syndication iframe is working
-      loadXFeedDataFallback(currentXTab);
+      loadXFeedData(currentXTab);
     }
 
     // Refresh news data every 2 minutes for real-time feel
@@ -2389,7 +2326,7 @@ export function getHTML() {
       // ISRAEL — City cameras
       { id: 'i24', label: 'i24 NEWS', region: 'IL', channelId: 'UCvHDpsWKADrDia0c99X37vg', loc: '32.06\u00b0N 34.76\u00b0E // JAFFA PORT', desc: 'Israeli news — Tel Aviv' },
       { id: 'telaviv', label: 'TEL AVIV', region: 'IL', channelId: 'UC1tBnbs03VJ34oLD8cmJSVw', loc: '32.08\u00b0N 34.77\u00b0E // GORDON BEACH', desc: 'Mediterranean coast cam' },
-      { id: 'jerusalem', label: 'JERUSALEM', region: 'IL', channelId: 'UC6qrG3W8SMK0jior2olka3g', loc: '31.77\u00b0N 35.23\u00b0E // OLD CITY', desc: 'Western Wall / Kotel' },
+      { id: 'jerusalem', label: 'KAN 11 ISRAEL', region: 'IL', channelId: 'UCIBaDdAbGlFDeS33shmlD0A', loc: '31.77\u00b0N 35.23\u00b0E // JERUSALEM', desc: 'Israeli public broadcaster' },
       // NEWS — 24/7 broadcasts
       { id: 'aljazeera', label: 'AL JAZEERA', region: 'ME', channelId: 'UCNye-wNBqNL5ZzHSJj3l8Bg', loc: '25.29\u00b0N 51.53\u00b0E // DOHA', desc: 'Middle East 24/7' },
       { id: 'france24', label: 'FRANCE 24', region: 'INT', channelId: 'UCQfwfsi5VrQ8yKZ-UWmAEFg', loc: '48.85\u00b0N 2.35\u00b0E // PARIS', desc: 'International 24/7' },

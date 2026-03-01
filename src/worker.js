@@ -170,9 +170,11 @@ async function refreshNewsData(env) {
 }
 
 // ========================================================================
-// X FEED API — Returns JSON tweet data from multiple fallback sources
+// X FEED API — Twitter/X API v2 with Bearer Token (primary)
+// Falls back to RSS sources if no API key configured
 // ========================================================================
 
+// RSS fallback instances (used when X_BEARER_TOKEN is not set)
 const RSSHUB_INSTANCES = [
   'https://rsshub.app',
   'https://rsshub.rssforever.com',
@@ -224,9 +226,128 @@ function parseRSSToTweets(xml, handle) {
   return items;
 }
 
-// Fetch tweets for a specific handle using multiple fallback sources
-async function fetchTweetsForHandle(handle) {
-  // METHOD 1: RSSHub Twitter user feed
+// ---- X API v2: Resolve username → user ID ----
+async function xApiGetUserId(handle, bearerToken) {
+  const res = await fetchWithTimeout(`https://api.x.com/2/users/by/username/${handle}`, {
+    headers: { 'Authorization': `Bearer ${bearerToken}` },
+  }, 8000);
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.data?.id || null;
+}
+
+// ---- X API v2: Fetch user timeline ----
+async function xApiFetchTimeline(handle, bearerToken, env) {
+  // Resolve handle → user ID (cache the mapping)
+  const idCacheKey = `x_uid_${handle}`;
+  let userId = await env.NEWS_CACHE.get(idCacheKey, 'text');
+  if (!userId) {
+    userId = await xApiGetUserId(handle, bearerToken);
+    if (userId) {
+      await env.NEWS_CACHE.put(idCacheKey, userId, { expirationTtl: 86400 }); // 24h cache
+    }
+  }
+  if (!userId) return [];
+
+  const params = new URLSearchParams({
+    'max_results': '25',
+    'tweet.fields': 'created_at,author_id,text,entities',
+    'expansions': 'author_id,attachments.media_keys',
+    'media.fields': 'url,preview_image_url,type',
+    'user.fields': 'name,username,profile_image_url',
+  });
+
+  const res = await fetchWithTimeout(
+    `https://api.x.com/2/users/${userId}/tweets?${params.toString()}`,
+    { headers: { 'Authorization': `Bearer ${bearerToken}` } },
+    10000
+  );
+
+  if (!res.ok) return [];
+  const data = await res.json();
+  if (!data.data || data.data.length === 0) return [];
+
+  // Build user lookup
+  const users = {};
+  (data.includes?.users || []).forEach(u => { users[u.id] = u; });
+
+  // Build media lookup
+  const media = {};
+  (data.includes?.media || []).forEach(m => { media[m.media_key] = m; });
+
+  return data.data.map(tweet => {
+    const user = users[tweet.author_id] || {};
+    const mediaKeys = tweet.attachments?.media_keys || [];
+    const firstPhoto = mediaKeys.map(k => media[k]).find(m => m && m.type === 'photo');
+
+    return {
+      text: tweet.text || '',
+      author: user.name || handle,
+      handle: user.username || handle,
+      date: tweet.created_at || new Date().toISOString(),
+      url: `https://x.com/${user.username || handle}/status/${tweet.id}`,
+      media: firstPhoto?.url || firstPhoto?.preview_image_url || null,
+      avatar: user.profile_image_url || null,
+    };
+  });
+}
+
+// ---- X API v2: Search recent tweets ----
+async function xApiSearchTweets(query, bearerToken) {
+  const params = new URLSearchParams({
+    'query': query + ' -is:retweet lang:en',
+    'max_results': '25',
+    'tweet.fields': 'created_at,author_id,text,entities',
+    'expansions': 'author_id,attachments.media_keys',
+    'media.fields': 'url,preview_image_url,type',
+    'user.fields': 'name,username,profile_image_url',
+  });
+
+  const res = await fetchWithTimeout(
+    `https://api.x.com/2/tweets/search/recent?${params.toString()}`,
+    { headers: { 'Authorization': `Bearer ${bearerToken}` } },
+    10000
+  );
+
+  if (!res.ok) return [];
+  const data = await res.json();
+  if (!data.data || data.data.length === 0) return [];
+
+  const users = {};
+  (data.includes?.users || []).forEach(u => { users[u.id] = u; });
+
+  const media = {};
+  (data.includes?.media || []).forEach(m => { media[m.media_key] = m; });
+
+  return data.data.map(tweet => {
+    const user = users[tweet.author_id] || {};
+    const mediaKeys = tweet.attachments?.media_keys || [];
+    const firstPhoto = mediaKeys.map(k => media[k]).find(m => m && m.type === 'photo');
+
+    return {
+      text: tweet.text || '',
+      author: user.name || 'Unknown',
+      handle: user.username || '',
+      date: tweet.created_at || new Date().toISOString(),
+      url: `https://x.com/${user.username || 'i'}/status/${tweet.id}`,
+      media: firstPhoto?.url || firstPhoto?.preview_image_url || null,
+      avatar: user.profile_image_url || null,
+    };
+  });
+}
+
+// ---- Combined: Fetch tweets for handle (X API v2 → RSS fallbacks) ----
+async function fetchTweetsForHandle(handle, env) {
+  // PRIMARY: X API v2 with Bearer Token
+  const bearerToken = env.X_BEARER_TOKEN;
+  if (bearerToken) {
+    try {
+      const tweets = await xApiFetchTimeline(handle, bearerToken, env);
+      if (tweets.length > 0) return tweets;
+    } catch { /* fall through to RSS */ }
+  }
+
+  // FALLBACK 1: RSSHub
   for (const instance of RSSHUB_INSTANCES) {
     try {
       const res = await fetchWithTimeout(`${instance}/twitter/user/${handle}`, {
@@ -241,7 +362,7 @@ async function fetchTweetsForHandle(handle) {
     } catch { /* try next */ }
   }
 
-  // METHOD 2: Nitter RSS feeds (reduced to first 2)
+  // FALLBACK 2: Nitter RSS
   for (const instance of NITTER_INSTANCES.slice(0, 2)) {
     try {
       const res = await fetchWithTimeout(`${instance}/${handle}/rss`, {
@@ -256,73 +377,23 @@ async function fetchTweetsForHandle(handle) {
     } catch { continue; }
   }
 
-  // METHOD 3: Twitter Syndication API — parse embedded tweet HTML
-  try {
-    const res = await fetchWithTimeout(`https://syndication.twitter.com/srv/timeline-profile/screen-name/${handle}`, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Referer': 'https://x.com/',
-      },
-      cf: { cacheTtl: 120 },
-    }, 6000);
-    if (res.ok) {
-      const html = await res.text();
-      if (html.length > 500 && !html.includes('not yet whitelisted')) {
-        const tweets = [];
-        const tweetBlockRegex = /<div[^>]*data-tweet-id="([^"]*)"[^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/gi;
-        let m;
-        while ((m = tweetBlockRegex.exec(html)) !== null) {
-          const tweetId = m[1];
-          const block = m[2];
-          const textMatch = block.match(/<p[^>]*class="[^"]*tweet-text[^"]*"[^>]*>([\s\S]*?)<\/p>/i)
-                         || block.match(/<div[^>]*class="[^"]*Tweet-text[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
-          if (textMatch) {
-            tweets.push({
-              text: cleanXmlText(textMatch[1]),
-              author: handle,
-              handle,
-              date: new Date().toISOString(),
-              url: tweetId ? `https://x.com/${handle}/status/${tweetId}` : `https://x.com/${handle}`,
-            });
-          }
-        }
-        if (tweets.length > 0) return tweets.slice(0, 25);
-      }
-    }
-  } catch { /* fall through */ }
-
-  // METHOD 4: FxTwitter API
-  try {
-    const res = await fetchWithTimeout(`https://api.fxtwitter.com/${handle}/`, {
-      headers: { 'User-Agent': 'IranWatcher/2.0' },
-      cf: { cacheTtl: 120 },
-    }, 5000);
-    if (res.ok) {
-      const data = await res.json();
-      const rawTweets = data.tweets || data.timeline?.entries || [];
-      if (rawTweets.length > 0) {
-        return rawTweets.slice(0, 25).map(t => ({
-          text: t.text || '',
-          author: t.author?.name || handle,
-          handle,
-          date: t.created_at || new Date().toISOString(),
-          url: t.url || `https://x.com/${handle}`,
-          media: t.media?.photos?.[0]?.url || null,
-        }));
-      }
-    }
-  } catch { /* final fallback */ }
-
   return [];
 }
 
-// Fetch tweets matching a search query
-async function fetchTweetsForSearch(query) {
+// ---- Combined: Fetch tweets for search (X API v2 → RSS fallbacks) ----
+async function fetchTweetsForSearch(query, env) {
   const encodedQuery = encodeURIComponent(query);
 
-  // METHOD 1: RSSHub Twitter search
+  // PRIMARY: X API v2 with Bearer Token
+  const bearerToken = env.X_BEARER_TOKEN;
+  if (bearerToken) {
+    try {
+      const tweets = await xApiSearchTweets(query, bearerToken);
+      if (tweets.length > 0) return tweets;
+    } catch { /* fall through to RSS */ }
+  }
+
+  // FALLBACK 1: RSSHub search
   for (const instance of RSSHUB_INSTANCES) {
     try {
       const res = await fetchWithTimeout(`${instance}/twitter/search/${encodedQuery}`, {
@@ -337,7 +408,7 @@ async function fetchTweetsForSearch(query) {
     } catch { /* try next */ }
   }
 
-  // METHOD 2: Nitter search RSS (only first instance)
+  // FALLBACK 2: Nitter search
   for (const instance of NITTER_INSTANCES.slice(0, 1)) {
     try {
       const res = await fetchWithTimeout(`${instance}/search/rss?f=tweets&q=${encodedQuery}`, {
@@ -360,7 +431,7 @@ async function handleXTimelineProxy(handle, env) {
     return Response.json({ success: false, error: 'Invalid handle' }, { status: 400 });
   }
 
-  const cacheKey = `x_feed_v3_${handle}`;
+  const cacheKey = `x_feed_v4_${handle}`;
   const cached = await env.NEWS_CACHE.get(cacheKey, 'json');
   if (cached && cached.length > 0) {
     return Response.json({ success: true, tweets: cached, source: 'cache' }, {
@@ -368,13 +439,13 @@ async function handleXTimelineProxy(handle, env) {
     });
   }
 
-  const tweets = await fetchTweetsForHandle(handle);
+  const tweets = await fetchTweetsForHandle(handle, env);
 
   if (tweets.length > 0) {
     await env.NEWS_CACHE.put(cacheKey, JSON.stringify(tweets), { expirationTtl: 180 });
   }
 
-  return Response.json({ success: true, tweets }, {
+  return Response.json({ success: true, tweets, source: env.X_BEARER_TOKEN ? 'x-api' : 'rss' }, {
     headers: { 'Cache-Control': 'public, max-age=120' },
   });
 }
@@ -385,7 +456,7 @@ async function handleXSearchProxy(query, env) {
   }
 
   const safeQuery = query.replace(/[<>"']/g, '');
-  const cacheKey = `x_search_v3_${encodeURIComponent(safeQuery)}`;
+  const cacheKey = `x_search_v4_${encodeURIComponent(safeQuery)}`;
   const cached = await env.NEWS_CACHE.get(cacheKey, 'json');
   if (cached && cached.length > 0) {
     return Response.json({ success: true, tweets: cached, source: 'cache' }, {
@@ -393,13 +464,13 @@ async function handleXSearchProxy(query, env) {
     });
   }
 
-  const tweets = await fetchTweetsForSearch(safeQuery);
+  const tweets = await fetchTweetsForSearch(safeQuery, env);
 
   if (tweets.length > 0) {
     await env.NEWS_CACHE.put(cacheKey, JSON.stringify(tweets), { expirationTtl: 180 });
   }
 
-  return Response.json({ success: true, tweets }, {
+  return Response.json({ success: true, tweets, source: env.X_BEARER_TOKEN ? 'x-api' : 'rss' }, {
     headers: { 'Cache-Control': 'public, max-age=120' },
   });
 }
@@ -415,9 +486,9 @@ const YT_CHANNELS = [
   { id: 'france24', channelId: 'UCQfwfsi5VrQ8yKZ-UWmAEFg', label: 'France 24 English' },
   { id: 'sky', channelId: 'UCoMdktPbSTixAyNGwb-UYkQ', label: 'Sky News' },
   { id: 'dw', channelId: 'UCknLrEdhRCp1aegoMqRhGGQ', label: 'DW News' },
-  // WEBCAM CHANNELS
+  // WEBCAM / ISRAEL NEWS CHANNELS
   { id: 'webcamtaxi', channelId: 'UC1tBnbs03VJ34oLD8cmJSVw', label: 'WebcamTaxi' },
-  { id: 'earthcam', channelId: 'UC6qrG3W8SMK0jior2olka3g', label: 'EarthCam' },
+  { id: 'kan11', channelId: 'UCIBaDdAbGlFDeS33shmlD0A', label: 'KAN 11 Israel' },
   // Handle-based (resolved via @handle/live)
   { id: 'earthtv', handle: 'earthTV', label: 'earthTV' },
 ];

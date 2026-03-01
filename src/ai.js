@@ -1,7 +1,72 @@
 // ============================================================================
-// AI SUMMARIZATION & CHAT - Powered by y12.ai
-// Generates intelligence briefings and handles real-time analyst chat
+// AI SUMMARIZATION & CHAT - Powered by Grok (xAI) with real-time X access
+// Grok has live access to X/Twitter data for real-time intelligence.
+// Set GROK_API_KEY secret via: npx wrangler secret put GROK_API_KEY
+// Falls back to Workers AI if no Grok key configured.
 // ============================================================================
+
+// xAI Grok API endpoint (OpenAI-compatible)
+const GROK_API_URL = 'https://api.x.ai/v1/chat/completions';
+const GROK_MODEL = 'grok-3-mini';
+
+// Call Grok (xAI) API directly
+async function callGrok(messages, env, maxTokens = 1024, temperature = 0.3) {
+  const res = await fetch(GROK_API_URL, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${env.GROK_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: GROK_MODEL,
+      messages,
+      max_tokens: maxTokens,
+      temperature,
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Grok API error ${res.status}: ${err}`);
+  }
+
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content || '';
+}
+
+// Call Workers AI (fallback)
+async function callWorkersAI(messages, env, maxTokens = 1024, temperature = 0.3) {
+  const response = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
+    messages,
+    max_tokens: maxTokens,
+    temperature,
+  });
+  return response?.response || '';
+}
+
+// Unified AI call — Grok first (real-time X access), Workers AI fallback
+async function callAI(messages, env, maxTokens = 1024, temperature = 0.3) {
+  // Primary: Grok (xAI — has real-time X/Twitter access)
+  if (env.GROK_API_KEY) {
+    try {
+      const result = await callGrok(messages, env, maxTokens, temperature);
+      if (result) return result;
+    } catch (err) {
+      console.error('Grok error, falling back to Workers AI:', err.message);
+    }
+  }
+
+  // Fallback: Workers AI
+  if (env.AI) {
+    try {
+      return await callWorkersAI(messages, env, maxTokens, temperature);
+    } catch (err) {
+      console.error('Workers AI error:', err.message);
+    }
+  }
+
+  return '';
+}
 
 export async function generateSummary(env, news) {
   try {
@@ -20,9 +85,9 @@ export async function generateSummary(env, news) {
       .map((item, i) => `${i + 1}. ${item.title}`)
       .join('\n');
 
-    const prompt = `You are a senior geopolitical intelligence analyst specializing in Iran-US relations and Middle East security.
+    const prompt = `You are a senior geopolitical intelligence analyst specializing in Iran-US relations and Middle East security. You have real-time access to X/Twitter data and current events.
 
-Analyze the following news headlines and social media posts about Iran and provide a concise intelligence briefing.
+Analyze the following news headlines and social media posts about Iran and provide a concise intelligence briefing. Use your real-time knowledge to supplement the provided data with the latest developments.
 
 OFFICIAL NEWS SOURCES:
 ${headlines || 'No official news items available at this time.'}
@@ -45,32 +110,25 @@ Provide your analysis in this exact format:
 
 **DIPLOMATIC STATUS:** 1-2 sentences on negotiations, sanctions, or diplomatic channels.
 
-**SOCIAL MEDIA SENTIMENT:** 1 sentence on what unofficial channels are reporting.
+**SOCIAL MEDIA SENTIMENT:** 1 sentence on what unofficial channels and X/Twitter are reporting.
 
 **OUTLOOK:** 1-2 sentences on what to watch for in the next 24-48 hours.
 
-Keep it factual, concise, and intelligence-focused. Do not speculate beyond what the headlines suggest.`;
+Keep it factual, concise, and intelligence-focused. Do not speculate beyond what the headlines and your real-time data suggest.`;
 
-    const response = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
-      messages: [
-        {
-          role: 'system',
-          content: 'You are a senior geopolitical intelligence analyst. Provide factual, concise intelligence briefings based on the provided source material. Never fabricate information.',
-        },
-        {
-          role: 'user',
-          content: prompt,
-        },
-      ],
-      max_tokens: 1024,
-      temperature: 0.3,
-    });
+    const messages = [
+      {
+        role: 'system',
+        content: 'You are a senior geopolitical intelligence analyst with real-time access to X/Twitter and current events. Provide factual, concise intelligence briefings based on the provided source material and your real-time knowledge. Never fabricate information.',
+      },
+      {
+        role: 'user',
+        content: prompt,
+      },
+    ];
 
-    if (response && response.response) {
-      return response.response;
-    }
-
-    return getDefaultSummary();
+    const result = await callAI(messages, env, 1024, 0.3);
+    return result || getDefaultSummary();
   } catch (err) {
     console.error('AI summarization error:', err);
     return getDefaultSummary();
@@ -100,15 +158,15 @@ export async function handleChatMessage(env, message, history, newsData, current
       newsContext += 'CURRENT INTELLIGENCE BRIEFING:\n' + currentSummary + '\n\n';
     }
 
-    const systemPrompt = `You are a y12.ai intelligence analyst embedded in the IRAN WATCHER monitoring system. You have access to real-time OSINT data about Iran-US relations and Middle East geopolitics.
+    const systemPrompt = `You are a y12.ai intelligence analyst embedded in the IRAN WATCHER monitoring system. You have real-time access to X/Twitter data and current events via Grok (xAI).
 
 ${newsContext}
 
 Rules:
-- Answer questions based on the current news data and briefing above
+- Answer questions based on the current news data, briefing above, AND your real-time knowledge from X/Twitter
 - Be concise (2-4 sentences unless asked for detail)
-- Stay factual — cite specific headlines when possible
-- If asked about something not in the data, say so
+- Stay factual — cite specific headlines or X posts when possible
+- If you have real-time X/Twitter data relevant to the question, include it
 - Use intelligence analyst tone — professional, precise
 - You can discuss topics like: military posture, nuclear program, sanctions, diplomacy, proxy forces, maritime security, energy`;
 
@@ -127,17 +185,8 @@ Rules:
     // Add current message
     messages.push({ role: 'user', content: message });
 
-    const response = await env.AI.run('@cf/meta/llama-3.1-8b-instruct', {
-      messages,
-      max_tokens: 512,
-      temperature: 0.4,
-    });
-
-    if (response && response.response) {
-      return response.response;
-    }
-
-    return 'Unable to generate response. Please try again.';
+    const result = await callAI(messages, env, 512, 0.4);
+    return result || 'Unable to generate response. Please try again.';
   } catch (err) {
     console.error('Chat AI error:', err);
     return 'Analysis system temporarily unavailable. Please try again.';

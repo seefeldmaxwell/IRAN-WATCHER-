@@ -1,20 +1,22 @@
 // ============================================================================
-// AI SUMMARIZATION & CHAT - Powered by Grok (xAI) with real-time X access
-// Grok has live access to X/Twitter data for real-time intelligence.
-// Set GROK_API_KEY secret via: npx wrangler secret put GROK_API_KEY
-// Falls back to Workers AI if no Grok key configured.
+// AI SUMMARIZATION & CHAT - Powered by Grok (xAI) via Cloudflare AI Gateway
+// Uses Unified Billing — no xAI API key needed, billed through Cloudflare.
+// Set CF_AIG_TOKEN secret via: npx wrangler secret put CF_AIG_TOKEN
+// Falls back to Workers AI if AI Gateway is unavailable.
 // ============================================================================
 
-// xAI Grok API endpoint (OpenAI-compatible)
-const GROK_API_URL = 'https://api.x.ai/v1/chat/completions';
-const GROK_MODEL = 'grok-3-mini';
+// Cloudflare AI Gateway endpoint (Unified API — OpenAI-compatible)
+const CF_ACCOUNT_ID = 'be5eb456301b4c06f7ce5a28e0f81054';
+const CF_GATEWAY_NAME = 'default';
+const AI_GATEWAY_URL = `https://gateway.ai.cloudflare.com/v1/${CF_ACCOUNT_ID}/${CF_GATEWAY_NAME}/compat/chat/completions`;
+const GROK_MODEL = 'grok/grok-3-mini';
 
-// Call Grok (xAI) API directly
+// Call Grok via Cloudflare AI Gateway (Unified Billing)
 async function callGrok(messages, env, maxTokens = 1024, temperature = 0.3) {
-  const res = await fetch(GROK_API_URL, {
+  const res = await fetch(AI_GATEWAY_URL, {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${env.GROK_API_KEY}`,
+      'cf-aig-authorization': `Bearer ${env.CF_AIG_TOKEN}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -27,7 +29,7 @@ async function callGrok(messages, env, maxTokens = 1024, temperature = 0.3) {
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`Grok API error ${res.status}: ${err}`);
+    throw new Error(`AI Gateway error ${res.status}: ${err}`);
   }
 
   const data = await res.json();
@@ -44,15 +46,15 @@ async function callWorkersAI(messages, env, maxTokens = 1024, temperature = 0.3)
   return response?.response || '';
 }
 
-// Unified AI call — Grok first (real-time X access), Workers AI fallback
+// Unified AI call — Grok via AI Gateway first, Workers AI fallback
 async function callAI(messages, env, maxTokens = 1024, temperature = 0.3) {
-  // Primary: Grok (xAI — has real-time X/Twitter access)
-  if (env.GROK_API_KEY) {
+  // Primary: Grok via Cloudflare AI Gateway (Unified Billing)
+  if (env.CF_AIG_TOKEN) {
     try {
       const result = await callGrok(messages, env, maxTokens, temperature);
       if (result) return result;
     } catch (err) {
-      console.error('Grok error, falling back to Workers AI:', err.message);
+      console.error('AI Gateway error, falling back to Workers AI:', err.message);
     }
   }
 

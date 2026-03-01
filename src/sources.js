@@ -186,14 +186,17 @@ async function fetchGoogleNewsRSS() {
 // ---- X/Twitter Account Handles for Timeline Fetching ----
 const X_ACCOUNTS = ['IranIntl', 'IranWireEnglish', 'ABORACIR'];
 
-// ---- Nitter/Alternative Frontend Instances for RSS ----
+// ---- RSSHub Instances (primary for X/Twitter) ----
+const RSSHUB_INSTANCES = [
+  'https://rsshub.app',
+  'https://rsshub.rssforever.com',
+];
+
+// ---- Nitter/Alternative Frontend Instances for RSS (fallback) ----
 const NITTER_INSTANCES = [
+  'https://xcancel.com',
   'https://nitter.privacydev.net',
   'https://nitter.poast.org',
-  'https://xcancel.com',
-  'https://nitter.woodland.cafe',
-  'https://nitter.1d4.us',
-  'https://nitter.lucabased.xyz',
 ];
 
 // ---- Fetch X/Twitter Mentions (via multiple fallback methods) ----
@@ -209,30 +212,48 @@ export async function fetchXMentions() {
   return [...accountPosts, ...searchPosts];
 }
 
-// ---- Fetch timelines for specific X accounts via Nitter RSS ----
+// ---- Fetch timelines for specific X accounts ----
 async function fetchXAccountTimelines() {
   const results = await Promise.allSettled(
     X_ACCOUNTS.map(async (handle) => {
-      // Try each Nitter instance until one works
-      for (const instance of NITTER_INSTANCES) {
+      // METHOD 1: RSSHub (fastest, most reliable)
+      for (const instance of RSSHUB_INSTANCES) {
         try {
-          const url = `${instance}/${handle}/rss`;
-          const response = await fetch(url, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; IranWatcher/1.0)' },
+          const response = await fetch(`${instance}/twitter/user/${handle}`, {
+            headers: { 'User-Agent': 'IranWatcher/2.0' },
             cf: { cacheTtl: 300 },
           });
-
           if (!response.ok) continue;
-
           const text = await response.text();
-
-          // Skip instances that require RSS whitelist
-          if (text.includes('not yet whitelisted') || text.includes('RSS reader not yet')) continue;
-
           const items = parseRSSXML(text);
+          if (items.length > 0) {
+            return items.slice(0, 10).map(item => ({
+              title: cleanHTML(item.title).slice(0, 280),
+              description: cleanHTML(item.description).slice(0, 500),
+              link: item.link || `https://x.com/${handle}`,
+              date: item.pubDate || new Date().toISOString(),
+              source: `@${handle}`,
+              category: 'unofficial',
+              icon: 'x',
+              handle: handle,
+              searchQuery: '',
+            }));
+          }
+        } catch { continue; }
+      }
 
+      // METHOD 2: Nitter RSS (limited instances)
+      for (const instance of NITTER_INSTANCES) {
+        try {
+          const response = await fetch(`${instance}/${handle}/rss`, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; IranWatcher/2.0)' },
+            cf: { cacheTtl: 300 },
+          });
+          if (!response.ok) continue;
+          const text = await response.text();
+          if (text.includes('not yet whitelisted') || text.includes('RSS reader not yet')) continue;
+          const items = parseRSSXML(text);
           if (items.length === 0) continue;
-
           return items.slice(0, 10).map(item => ({
             title: cleanHTML(item.title).slice(0, 280),
             description: cleanHTML(item.description).slice(0, 500),
@@ -244,22 +265,20 @@ async function fetchXAccountTimelines() {
             handle: handle,
             searchQuery: '',
           }));
-        } catch {
-          continue;
-        }
+        } catch { continue; }
       }
 
-      // Try FxTwitter API as final fallback for account timelines
+      // METHOD 3: FxTwitter API
       try {
         const response = await fetch(`https://api.fxtwitter.com/${handle}`, {
-          headers: { 'User-Agent': 'IranWatcher/1.0' },
+          headers: { 'User-Agent': 'IranWatcher/2.0' },
           cf: { cacheTtl: 300 },
         });
-
         if (response.ok) {
           const data = await response.json();
-          if (data.tweets && data.tweets.length > 0) {
-            return data.tweets.slice(0, 10).map(tweet => ({
+          const tweets = data.tweets || [];
+          if (tweets.length > 0) {
+            return tweets.slice(0, 10).map(tweet => ({
               title: (tweet.text || '').slice(0, 280),
               description: (tweet.text || '').slice(0, 500),
               link: tweet.url || `https://x.com/${handle}`,
@@ -272,9 +291,7 @@ async function fetchXAccountTimelines() {
             }));
           }
         }
-      } catch {
-        // FxTwitter fallback failed
-      }
+      } catch { /* all methods failed */ }
 
       return [];
     })
@@ -285,32 +302,49 @@ async function fetchXAccountTimelines() {
     .flatMap(r => r.value);
 }
 
-// ---- Fetch X search results via Nitter RSS search ----
+// ---- Fetch X search results ----
 async function fetchXSearchPosts() {
   const results = await Promise.allSettled(
     X_SEARCH_QUERIES.slice(0, 5).map(async (query) => {
       const encodedQuery = encodeURIComponent(query);
 
-      // Try Nitter search RSS
-      for (const instance of NITTER_INSTANCES) {
+      // METHOD 1: RSSHub search
+      for (const instance of RSSHUB_INSTANCES) {
         try {
-          const url = `${instance}/search/rss?f=tweets&q=${encodedQuery}`;
-          const response = await fetch(url, {
-            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; IranWatcher/1.0)' },
+          const response = await fetch(`${instance}/twitter/search/${encodedQuery}`, {
+            headers: { 'User-Agent': 'IranWatcher/2.0' },
             cf: { cacheTtl: 300 },
           });
-
           if (!response.ok) continue;
-
           const text = await response.text();
-
-          // Skip instances that require RSS whitelist
-          if (text.includes('not yet whitelisted') || text.includes('RSS reader not yet')) continue;
-
           const items = parseRSSXML(text);
+          if (items.length > 0) {
+            return items.slice(0, 5).map(item => ({
+              title: cleanHTML(item.title).slice(0, 280),
+              description: cleanHTML(item.description).slice(0, 500),
+              link: item.link || `https://x.com/search?q=${encodedQuery}`,
+              date: item.pubDate || new Date().toISOString(),
+              source: `X Search - "${query}"`,
+              category: 'unofficial',
+              icon: 'x',
+              searchQuery: query,
+            }));
+          }
+        } catch { continue; }
+      }
 
+      // METHOD 2: Nitter search RSS
+      for (const instance of NITTER_INSTANCES) {
+        try {
+          const response = await fetch(`${instance}/search/rss?f=tweets&q=${encodedQuery}`, {
+            headers: { 'User-Agent': 'Mozilla/5.0 (compatible; IranWatcher/2.0)' },
+            cf: { cacheTtl: 300 },
+          });
+          if (!response.ok) continue;
+          const text = await response.text();
+          if (text.includes('not yet whitelisted') || text.includes('RSS reader not yet')) continue;
+          const items = parseRSSXML(text);
           if (items.length === 0) continue;
-
           return items.slice(0, 5).map(item => ({
             title: cleanHTML(item.title).slice(0, 280),
             description: cleanHTML(item.description).slice(0, 500),
@@ -321,37 +355,7 @@ async function fetchXSearchPosts() {
             icon: 'x',
             searchQuery: query,
           }));
-        } catch {
-          continue;
-        }
-      }
-
-      // Try RSSHub as additional fallback
-      try {
-        const url = `https://rsshub.app/twitter/search/${encodedQuery}`;
-        const response = await fetch(url, {
-          headers: { 'User-Agent': 'IranWatcher/1.0' },
-          cf: { cacheTtl: 300 },
-        });
-
-        if (response.ok) {
-          const text = await response.text();
-          const items = parseRSSXML(text);
-          if (items.length > 0) {
-            return items.slice(0, 5).map(item => ({
-              title: cleanHTML(item.title).slice(0, 280),
-              description: cleanHTML(item.description).slice(0, 500),
-              link: item.link,
-              date: item.pubDate || new Date().toISOString(),
-              source: `X Search - "${query}"`,
-              category: 'unofficial',
-              icon: 'x',
-              searchQuery: query,
-            }));
-          }
-        }
-      } catch {
-        // RSSHub fallback failed
+        } catch { continue; }
       }
 
       // Final fallback: monitoring placeholder

@@ -35,13 +35,13 @@ export default {
       return handleChat(request, env);
     }
 
-    // X timeline proxy — serves real tweets inline via iframe
+    // X timeline API — returns JSON tweet data from multiple sources
     if (url.pathname.startsWith('/api/x-timeline/')) {
       const handle = url.pathname.replace('/api/x-timeline/', '').replace(/[^a-zA-Z0-9_]/g, '');
       return handleXTimelineProxy(handle, env);
     }
 
-    // X search proxy — serves real search results inline via iframe
+    // X search API — returns JSON tweet data for search queries
     if (url.pathname.startsWith('/api/x-search/')) {
       const query = decodeURIComponent(url.pathname.replace('/api/x-search/', ''));
       return handleXSearchProxy(query, env);
@@ -82,16 +82,25 @@ async function handleNewsAPI(env) {
       });
     }
 
-    // No cached data — fetch fresh
+    // No cached data — fetch fresh (return news first, summary can be slow)
     const news = await fetchAllNews();
-    const newSummary = await generateSummary(env, news);
     const now = new Date().toISOString();
 
-    await Promise.all([
-      env.NEWS_CACHE.put('latest_news', JSON.stringify(news), { expirationTtl: 1800 }),
-      env.NEWS_CACHE.put('ai_summary', newSummary, { expirationTtl: 1800 }),
-      env.NEWS_CACHE.put('last_updated', now, { expirationTtl: 1800 }),
-    ]);
+    // Cache news immediately so subsequent requests are fast
+    const hasNews = (news.official?.length > 0 || news.unofficial?.length > 0);
+    if (hasNews) {
+      await env.NEWS_CACHE.put('latest_news', JSON.stringify(news), { expirationTtl: 1800 });
+      await env.NEWS_CACHE.put('last_updated', now, { expirationTtl: 1800 });
+    }
+
+    // Generate AI summary (non-blocking for response if it takes too long)
+    let newSummary = 'Summary is being generated...';
+    try {
+      newSummary = await generateSummary(env, news);
+      if (newSummary && hasNews) {
+        await env.NEWS_CACHE.put('ai_summary', newSummary, { expirationTtl: 1800 });
+      }
+    } catch { /* summary generation failed, still return news */ }
 
     return Response.json({
       success: true,
@@ -149,216 +158,239 @@ async function refreshNewsData(env) {
 }
 
 // ========================================================================
-// X TIMELINE PROXY — Twitter Syndication API (primary) + Nitter (fallback)
+// X FEED API — Returns JSON tweet data from multiple fallback sources
 // ========================================================================
 
-const X_DARK_THEME = `
-<style>
-  * { box-sizing: border-box; }
-  body {
-    background: #080c14 !important;
-    color: #d1ddf0 !important;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    margin: 0; padding: 0;
-    -webkit-font-smoothing: antialiased;
-  }
-  a { color: #1d9bf0 !important; text-decoration: none !important; }
-  /* Syndication API styles */
-  .timeline-Widget, .timeline-Tweet { background: transparent !important; border-color: #1a2744 !important; }
-  .timeline-Tweet-text { color: #d1ddf0 !important; font-size: 13px !important; line-height: 1.5 !important; }
-  .timeline-Tweet-author { color: #d1ddf0 !important; }
-  .timeline-Tweet-metadata { color: #4a5f82 !important; }
-  .TweetAuthor-name { color: #d1ddf0 !important; font-weight: 600 !important; }
-  .TweetAuthor-screenName { color: #4a5f82 !important; }
-  .timeline-Header, .timeline-Footer, .timeline-LoadMore { display: none !important; }
-  /* Nitter styles */
-  nav, .navbar, header, .mobile-nav, footer, #search, .search-bar,
-  .timeline-header, .profile-card-extra, .profile-tabs, .show-more,
-  .nitter-logo, #m-nav, .inner-nav { display: none !important; }
-  .timeline-item, .tweet-body, .timeline .tweet {
-    border-bottom: 1px solid #1a2744 !important; padding: 12px 14px !important; background: transparent !important;
-  }
-  .timeline-item:hover, .tweet:hover { background: rgba(19,29,53,0.5) !important; }
-  .tweet-content, .tweet-body .tweet-text { color: #d1ddf0 !important; font-size: 13px !important; line-height: 1.5 !important; }
-  .fullname { color: #d1ddf0 !important; font-weight: 600 !important; }
-  .username { color: #4a5f82 !important; }
-  .tweet-date, .tweet-published, .tweet-stats { color: #4a5f82 !important; font-size: 11px !important; }
-  .attachments img, .still-image img { border-radius: 8px !important; max-width: 100% !important; margin-top: 8px !important; }
-  .profile-card { padding: 14px !important; border-bottom: 1px solid #1a2744 !important; }
-  .profile-card-info .profile-card-fullname { color: #d1ddf0 !important; font-size: 15px !important; font-weight: 700 !important; }
-  .profile-card-info .profile-card-username { color: #4a5f82 !important; }
-  .profile-card-avatar img { border-radius: 50% !important; }
-  ::-webkit-scrollbar { width: 4px; }
-  ::-webkit-scrollbar-track { background: #080c14; }
-  ::-webkit-scrollbar-thumb { background: #1a2744; }
-</style>
-`;
+const RSSHUB_INSTANCES = [
+  'https://rsshub.app',
+  'https://rsshub.rssforever.com',
+];
 
-async function handleXTimelineProxy(handle, env) {
-  if (!handle || !/^[a-zA-Z0-9_]{1,30}$/.test(handle)) {
-    return new Response('Invalid handle', { status: 400 });
-  }
+// RSS XML parser helpers
+function extractXmlTag(xml, tag) {
+  const regex = new RegExp(`<${tag}[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/${tag}>`, 'i');
+  const match = regex.exec(xml);
+  return match ? match[1].trim() : '';
+}
 
-  const cacheKey = `x_timeline_v2_${handle}`;
-  const cached = await env.NEWS_CACHE.get(cacheKey, 'text');
-  if (cached) {
-    return new Response(cached, {
-      headers: { 'Content-Type': 'text/html;charset=UTF-8', 'Cache-Control': 'public, max-age=120' },
+function cleanXmlText(str) {
+  return str
+    .replace(/<[^>]*>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function parseRSSToTweets(xml, handle) {
+  const items = [];
+  const itemRegex = /<item>([\s\S]*?)<\/item>/gi;
+  let match;
+  while ((match = itemRegex.exec(xml)) !== null) {
+    const itemXml = match[1];
+    const title = extractXmlTag(itemXml, 'title');
+    const description = extractXmlTag(itemXml, 'description');
+    const link = extractXmlTag(itemXml, 'link');
+    const pubDate = extractXmlTag(itemXml, 'pubDate');
+    const creator = extractXmlTag(itemXml, 'dc:creator');
+
+    const text = cleanXmlText(description || title);
+    if (!text || text.includes('not yet whitelisted') || text.includes('RSS reader not yet')) continue;
+
+    items.push({
+      text,
+      author: creator ? cleanXmlText(creator) : (handle || 'Unknown'),
+      handle: handle || '',
+      date: pubDate || new Date().toISOString(),
+      url: link ? link.replace(/nitter\.[^/]+/g, 'x.com').replace(/xcancel\.com/g, 'x.com') : `https://x.com/${handle}`,
     });
   }
+  return items;
+}
 
-  // METHOD 1: Twitter Syndication API (official, no API key)
+// Fetch tweets for a specific handle using multiple fallback sources
+async function fetchTweetsForHandle(handle) {
+  // METHOD 1: RSSHub Twitter user feed
+  for (const instance of RSSHUB_INSTANCES) {
+    try {
+      const res = await fetch(`${instance}/twitter/user/${handle}`, {
+        headers: { 'User-Agent': 'IranWatcher/2.0' },
+        cf: { cacheTtl: 120 },
+      });
+      if (res.ok) {
+        const xml = await res.text();
+        const tweets = parseRSSToTweets(xml, handle);
+        if (tweets.length > 0) return tweets.slice(0, 25);
+      }
+    } catch { /* try next */ }
+  }
+
+  // METHOD 2: Nitter RSS feeds
+  for (const instance of NITTER_INSTANCES) {
+    try {
+      const res = await fetch(`${instance}/${handle}/rss`, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; IranWatcher/2.0)' },
+        cf: { cacheTtl: 120 },
+      });
+      if (!res.ok) continue;
+      const xml = await res.text();
+      if (xml.includes('not yet whitelisted') || xml.includes('RSS reader not yet')) continue;
+      const tweets = parseRSSToTweets(xml, handle);
+      if (tweets.length > 0) return tweets.slice(0, 25);
+    } catch { continue; }
+  }
+
+  // METHOD 3: Twitter Syndication API — parse embedded tweet HTML
   try {
-    const response = await fetch(`https://syndication.twitter.com/srv/timeline-profile/screen-name/${handle}`, {
+    const res = await fetch(`https://syndication.twitter.com/srv/timeline-profile/screen-name/${handle}`, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-US,en;q=0.9',
+        'Referer': 'https://x.com/',
       },
       cf: { cacheTtl: 120 },
     });
-
-    if (response.ok) {
-      let html = await response.text();
+    if (res.ok) {
+      const html = await res.text();
       if (html.length > 500 && !html.includes('not yet whitelisted')) {
-        html = html.replace('</head>', `${X_DARK_THEME}<base target="_blank"></head>`);
-        await env.NEWS_CACHE.put(cacheKey, html, { expirationTtl: 120 });
-        return new Response(html, {
-          headers: { 'Content-Type': 'text/html;charset=UTF-8', 'Cache-Control': 'public, max-age=120' },
-        });
+        // Extract tweet text from syndication HTML
+        const tweets = [];
+        const tweetBlockRegex = /<div[^>]*data-tweet-id="([^"]*)"[^>]*>([\s\S]*?)<\/div>\s*<\/div>\s*<\/div>/gi;
+        let m;
+        while ((m = tweetBlockRegex.exec(html)) !== null) {
+          const tweetId = m[1];
+          const block = m[2];
+          const textMatch = block.match(/<p[^>]*class="[^"]*tweet-text[^"]*"[^>]*>([\s\S]*?)<\/p>/i)
+                         || block.match(/<div[^>]*class="[^"]*Tweet-text[^"]*"[^>]*>([\s\S]*?)<\/div>/i);
+          if (textMatch) {
+            tweets.push({
+              text: cleanXmlText(textMatch[1]),
+              author: handle,
+              handle,
+              date: new Date().toISOString(),
+              url: tweetId ? `https://x.com/${handle}/status/${tweetId}` : `https://x.com/${handle}`,
+            });
+          }
+        }
+        if (tweets.length > 0) return tweets.slice(0, 25);
       }
     }
-  } catch { /* fall through to Nitter */ }
+  } catch { /* fall through */ }
 
-  // METHOD 2: Nitter instances (fallback)
-  for (const instance of NITTER_INSTANCES) {
-    try {
-      const response = await fetch(`${instance}/${handle}`, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml',
-          'Accept-Language': 'en-US,en;q=0.9',
-        },
-        cf: { cacheTtl: 120 },
-      });
-
-      if (!response.ok) continue;
-      let html = await response.text();
-      if ((!html.includes('timeline') && !html.includes('tweet')) ||
-          html.includes('not yet whitelisted') || html.includes('RSS reader not yet')) continue;
-
-      html = html.replace('</head>', `${X_DARK_THEME}<base target="_blank"></head>`);
-      const instanceHost = new URL(instance).host;
-      html = html.replace(new RegExp(`https?://${instanceHost.replace('.', '\\.')}`, 'g'), 'https://x.com');
-      html = html.replace(new RegExp(`href="/`, 'g'), 'href="https://x.com/');
-      await env.NEWS_CACHE.put(cacheKey, html, { expirationTtl: 120 });
-      return new Response(html, {
-        headers: { 'Content-Type': 'text/html;charset=UTF-8', 'Cache-Control': 'public, max-age=120' },
-      });
-    } catch { continue; }
-  }
-
-  // METHOD 3: Build timeline from FxTwitter API data
+  // METHOD 4: FxTwitter API
   try {
-    const response = await fetch(`https://api.fxtwitter.com/${handle}/`, {
+    const res = await fetch(`https://api.fxtwitter.com/${handle}/`, {
       headers: { 'User-Agent': 'IranWatcher/2.0' },
       cf: { cacheTtl: 120 },
     });
-    if (response.ok) {
-      const data = await response.json();
-      const tweets = data.tweets || data.timeline?.entries || [];
-      if (tweets.length > 0) {
-        const tweetHTML = tweets.slice(0, 20).map(t => `
-          <div style="padding:12px 14px;border-bottom:1px solid #1a2744;">
-            <div style="display:flex;gap:8px;margin-bottom:6px;">
-              <strong style="color:#d1ddf0;font-size:13px;">@${handle}</strong>
-              <span style="color:#4a5f82;font-size:11px;">${t.created_at ? new Date(t.created_at).toLocaleString() : ''}</span>
-            </div>
-            <div style="color:#d1ddf0;font-size:13px;line-height:1.5;">${(t.text || '').replace(/</g,'&lt;')}</div>
-            ${t.media?.photos?.[0] ? `<img src="${t.media.photos[0].url}" style="max-width:100%;border-radius:8px;margin-top:8px;">` : ''}
-          </div>`).join('');
-
-        const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-          ${X_DARK_THEME}<base target="_blank"></head>
-          <body>${tweetHTML}</body></html>`;
-        await env.NEWS_CACHE.put(cacheKey, html, { expirationTtl: 120 });
-        return new Response(html, {
-          headers: { 'Content-Type': 'text/html;charset=UTF-8', 'Cache-Control': 'public, max-age=120' },
-        });
+    if (res.ok) {
+      const data = await res.json();
+      const rawTweets = data.tweets || data.timeline?.entries || [];
+      if (rawTweets.length > 0) {
+        return rawTweets.slice(0, 25).map(t => ({
+          text: t.text || '',
+          author: t.author?.name || handle,
+          handle,
+          date: t.created_at || new Date().toISOString(),
+          url: t.url || `https://x.com/${handle}`,
+          media: t.media?.photos?.[0]?.url || null,
+        }));
       }
     }
   } catch { /* final fallback */ }
 
-  const fallback = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">${X_DARK_THEME}</head>
-<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:20px;">
-  <div>
-    <div style="font-size:40px;margin-bottom:16px;opacity:0.15;">&#120143;</div>
-    <div style="font-size:14px;color:#7e93b5;margin-bottom:12px;">@${handle} — Connecting...</div>
-    <div style="font-size:12px;color:#4a5f82;margin-bottom:20px;">Syndication bridge initializing</div>
-    <a href="https://x.com/${handle}" target="_blank" style="display:inline-block;padding:12px 24px;background:rgba(29,155,240,0.1);border:1px solid rgba(29,155,240,0.3);color:#1d9bf0;text-decoration:none;font-size:13px;font-weight:600;">
-      View @${handle} on X &rarr;
-    </a>
-  </div>
-</body></html>`;
+  return [];
+}
 
-  return new Response(fallback, { headers: { 'Content-Type': 'text/html;charset=UTF-8' } });
+// Fetch tweets matching a search query
+async function fetchTweetsForSearch(query) {
+  const encodedQuery = encodeURIComponent(query);
+
+  // METHOD 1: RSSHub Twitter search
+  for (const instance of RSSHUB_INSTANCES) {
+    try {
+      const res = await fetch(`${instance}/twitter/search/${encodedQuery}`, {
+        headers: { 'User-Agent': 'IranWatcher/2.0' },
+        cf: { cacheTtl: 120 },
+      });
+      if (res.ok) {
+        const xml = await res.text();
+        const tweets = parseRSSToTweets(xml, '');
+        if (tweets.length > 0) return tweets.slice(0, 20);
+      }
+    } catch { /* try next */ }
+  }
+
+  // METHOD 2: Nitter search RSS
+  for (const instance of NITTER_INSTANCES) {
+    try {
+      const res = await fetch(`${instance}/search/rss?f=tweets&q=${encodedQuery}`, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; IranWatcher/2.0)' },
+        cf: { cacheTtl: 120 },
+      });
+      if (!res.ok) continue;
+      const xml = await res.text();
+      if (xml.includes('not yet whitelisted') || xml.includes('RSS reader not yet')) continue;
+      const tweets = parseRSSToTweets(xml, '');
+      if (tweets.length > 0) return tweets.slice(0, 20);
+    } catch { continue; }
+  }
+
+  return [];
+}
+
+async function handleXTimelineProxy(handle, env) {
+  if (!handle || !/^[a-zA-Z0-9_]{1,30}$/.test(handle)) {
+    return Response.json({ success: false, error: 'Invalid handle' }, { status: 400 });
+  }
+
+  const cacheKey = `x_feed_v3_${handle}`;
+  const cached = await env.NEWS_CACHE.get(cacheKey, 'json');
+  if (cached && cached.length > 0) {
+    return Response.json({ success: true, tweets: cached, source: 'cache' }, {
+      headers: { 'Cache-Control': 'public, max-age=120' },
+    });
+  }
+
+  const tweets = await fetchTweetsForHandle(handle);
+
+  if (tweets.length > 0) {
+    await env.NEWS_CACHE.put(cacheKey, JSON.stringify(tweets), { expirationTtl: 180 });
+  }
+
+  return Response.json({ success: true, tweets }, {
+    headers: { 'Cache-Control': 'public, max-age=120' },
+  });
 }
 
 async function handleXSearchProxy(query, env) {
   if (!query || query.length > 200) {
-    return new Response('Invalid query', { status: 400 });
+    return Response.json({ success: false, error: 'Invalid query' }, { status: 400 });
   }
 
   const safeQuery = query.replace(/[<>"']/g, '');
-  const cacheKey = `x_search_v2_${encodeURIComponent(safeQuery)}`;
-  const cached = await env.NEWS_CACHE.get(cacheKey, 'text');
-  if (cached) {
-    return new Response(cached, {
-      headers: { 'Content-Type': 'text/html;charset=UTF-8', 'Cache-Control': 'public, max-age=120' },
+  const cacheKey = `x_search_v3_${encodeURIComponent(safeQuery)}`;
+  const cached = await env.NEWS_CACHE.get(cacheKey, 'json');
+  if (cached && cached.length > 0) {
+    return Response.json({ success: true, tweets: cached, source: 'cache' }, {
+      headers: { 'Cache-Control': 'public, max-age=120' },
     });
   }
 
-  const encodedQuery = encodeURIComponent(safeQuery);
+  const tweets = await fetchTweetsForSearch(safeQuery);
 
-  // Try Nitter search (syndication API has no search endpoint)
-  for (const instance of NITTER_INSTANCES) {
-    try {
-      const response = await fetch(`${instance}/search?f=tweets&q=${encodedQuery}`, {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml',
-        },
-        cf: { cacheTtl: 120 },
-      });
-      if (!response.ok) continue;
-      let html = await response.text();
-      if ((!html.includes('timeline') && !html.includes('tweet')) ||
-          html.includes('not yet whitelisted') || html.includes('RSS reader not yet')) continue;
-
-      html = html.replace('</head>', `${X_DARK_THEME}<base target="_blank"></head>`);
-      const instanceHost = new URL(instance).host;
-      html = html.replace(new RegExp(`https?://${instanceHost.replace('.', '\\.')}`, 'g'), 'https://x.com');
-      html = html.replace(new RegExp(`href="/`, 'g'), 'href="https://x.com/');
-      await env.NEWS_CACHE.put(cacheKey, html, { expirationTtl: 120 });
-      return new Response(html, {
-        headers: { 'Content-Type': 'text/html;charset=UTF-8', 'Cache-Control': 'public, max-age=120' },
-      });
-    } catch { continue; }
+  if (tweets.length > 0) {
+    await env.NEWS_CACHE.put(cacheKey, JSON.stringify(tweets), { expirationTtl: 180 });
   }
 
-  const fallback = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">${X_DARK_THEME}</head>
-<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:20px;">
-  <div>
-    <div style="font-size:40px;margin-bottom:16px;opacity:0.15;">&#120143;</div>
-    <div style="font-size:14px;color:#7e93b5;margin-bottom:12px;">Search: "${safeQuery}"</div>
-    <div style="font-size:12px;color:#4a5f82;margin-bottom:20px;">Bridge connecting...</div>
-    <a href="https://x.com/search?q=${encodedQuery}&f=live" target="_blank" style="display:inline-block;padding:12px 24px;background:rgba(29,155,240,0.1);border:1px solid rgba(29,155,240,0.3);color:#1d9bf0;text-decoration:none;font-size:13px;font-weight:600;">
-      Search on X &rarr;
-    </a>
-  </div>
-</body></html>`;
-
-  return new Response(fallback, { headers: { 'Content-Type': 'text/html;charset=UTF-8' } });
+  return Response.json({ success: true, tweets }, {
+    headers: { 'Cache-Control': 'public, max-age=120' },
+  });
 }
 
 // ========================================================================

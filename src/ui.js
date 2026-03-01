@@ -520,23 +520,22 @@ export function getHTML() {
 
     .cam-embed iframe {
       position: absolute;
-      top: -2px;
-      left: -2px;
-      width: calc(100% + 4px);
-      height: calc(100% + 50px);
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
       border: none;
-      pointer-events: none;
     }
 
-    /* Hide YouTube logo + bottom bar */
+    /* Subtle bottom fade for branding */
     .cam-embed::after {
       content: '';
       position: absolute;
       bottom: 0;
       left: 0;
       right: 0;
-      height: 48px;
-      background: linear-gradient(0deg, rgba(4,6,11,0.98) 0%, rgba(4,6,11,0.6) 70%, transparent 100%);
+      height: 28px;
+      background: linear-gradient(0deg, rgba(4,6,11,0.7) 0%, transparent 100%);
       z-index: 4;
       pointer-events: none;
     }
@@ -552,6 +551,7 @@ export function getHTML() {
       justify-content: space-between;
       padding: 8px 12px;
       background: linear-gradient(180deg, rgba(4,6,11,0.92) 0%, rgba(4,6,11,0.5) 70%, transparent 100%);
+      pointer-events: none;
     }
 
     .cam-embed-footer {
@@ -2100,10 +2100,10 @@ export function getHTML() {
     }
 
     // ========================================================================
-    // X / TWITTER FEED — Real-time inline via server-side proxy
+    // X / TWITTER FEED — JSON API + card-based rendering (no iframes)
     // ========================================================================
     let currentXTab = 0;
-    let xIframeAutoRefreshTimer = null;
+    let xAutoRefreshTimer = null;
 
     function buildXSearchTabs() {
       const container = document.getElementById('xSearchTabs');
@@ -2123,96 +2123,90 @@ export function getHTML() {
       const container = document.getElementById('xFeedContent');
       const item = X_ACCOUNTS[idx];
 
-      // Clear any existing auto-refresh timer
-      if (xIframeAutoRefreshTimer) clearInterval(xIframeAutoRefreshTimer);
+      if (xAutoRefreshTimer) clearInterval(xAutoRefreshTimer);
 
-      if (item.type === 'account') {
-        // Load real X timeline via server-side proxy (rendered inline in iframe)
-        const proxyUrl = '/api/x-timeline/' + encodeURIComponent(item.handle);
-        container.innerHTML = \`
-          <div class="x-embed-status" id="xEmbedStatus">
-            <span class="status-dot" style="width:5px;height:5px;background:#1d9bf0;border-radius:50%;animation:blink 2s infinite;"></span>
-            <span>LIVE TIMELINE — @\${item.handle.toUpperCase()}</span>
-            <span style="margin-left:auto;font-size:8px;opacity:0.6;" id="xRefreshTime">LOADING...</span>
-          </div>
-          <iframe src="\${proxyUrl}" class="x-live-iframe" id="xLiveIframe"
-                  sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-                  loading="eager"
-                  onload="onXIframeLoad()"
-                  onerror="onXIframeError(\${idx})"></iframe>
-          <div class="x-iframe-footer">
-            <button class="x-refresh-btn" onclick="refreshXIframe()">&#8635; REFRESH</button>
-            <a href="https://x.com/\${item.handle}" target="_blank" rel="noopener noreferrer" class="x-open-btn">
-              OPEN ON X &rarr;
-            </a>
-          </div>\`;
+      const statusLabel = item.type === 'account'
+        ? \`LIVE TIMELINE — @\${item.handle.toUpperCase()}\`
+        : \`LIVE SEARCH — "\${escapeHtml(item.query).toUpperCase()}"\`;
 
-        // Auto-refresh iframe every 2 minutes
-        xIframeAutoRefreshTimer = setInterval(refreshXIframe, 2 * 60 * 1000);
+      const openUrl = item.type === 'account'
+        ? \`https://x.com/\${item.handle}\`
+        : \`https://x.com/search?q=\${encodeURIComponent(item.query)}&f=live\`;
 
-      } else {
-        // Search query — load via server-side search proxy
-        const proxyUrl = '/api/x-search/' + encodeURIComponent(item.query);
-        container.innerHTML = \`
-          <div class="x-embed-status" id="xEmbedStatus">
-            <span class="status-dot" style="width:5px;height:5px;background:#1d9bf0;border-radius:50%;animation:blink 2s infinite;"></span>
-            <span>LIVE SEARCH — "\${escapeHtml(item.query).toUpperCase()}"</span>
-            <span style="margin-left:auto;font-size:8px;opacity:0.6;" id="xRefreshTime">LOADING...</span>
-          </div>
-          <iframe src="\${proxyUrl}" class="x-live-iframe" id="xLiveIframe"
-                  sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-                  loading="eager"
-                  onload="onXIframeLoad()"
-                  onerror="onXIframeError(\${idx})"></iframe>
-          <div class="x-iframe-footer">
-            <button class="x-refresh-btn" onclick="refreshXIframe()">&#8635; REFRESH</button>
-            <a href="https://x.com/search?q=\${encodeURIComponent(item.query)}&f=live" target="_blank" rel="noopener noreferrer" class="x-open-btn">
-              SEARCH ON X &rarr;
-            </a>
-          </div>\`;
+      container.innerHTML = \`
+        <div class="x-embed-status" id="xEmbedStatus">
+          <span class="status-dot" style="width:5px;height:5px;background:#1d9bf0;border-radius:50%;animation:blink 2s infinite;"></span>
+          <span>\${statusLabel}</span>
+          <span style="margin-left:auto;font-size:8px;opacity:0.6;" id="xRefreshTime">LOADING...</span>
+        </div>
+        <div class="x-feed-items" id="xFeedItems" style="flex:1;overflow-y:auto;">
+          <div class="briefing-loading"><div class="spinner"></div>Fetching X posts...</div>
+        </div>
+        <div class="x-iframe-footer">
+          <button class="x-refresh-btn" onclick="loadXFeedData(\${idx})">&#8635; REFRESH</button>
+          <a href="\${openUrl}" target="_blank" rel="noopener noreferrer" class="x-open-btn">OPEN ON X &rarr;</a>
+        </div>\`;
 
-        xIframeAutoRefreshTimer = setInterval(refreshXIframe, 2 * 60 * 1000);
-      }
+      loadXFeedData(idx);
+      xAutoRefreshTimer = setInterval(() => loadXFeedData(idx), 2 * 60 * 1000);
     }
 
-    function onXIframeLoad() {
-      const status = document.getElementById('xEmbedStatus');
+    async function loadXFeedData(idx) {
+      const item = X_ACCOUNTS[idx];
+      const itemsContainer = document.getElementById('xFeedItems');
       const timeEl = document.getElementById('xRefreshTime');
-      if (status) {
-        const dot = status.querySelector('.status-dot');
-        if (dot) dot.style.background = 'var(--accent-green)';
-      }
-      if (timeEl) {
-        timeEl.textContent = 'UPDATED ' + new Date().toLocaleTimeString('en-US', { hour12: false });
-      }
-    }
+      const statusEl = document.getElementById('xEmbedStatus');
 
-    function onXIframeError(idx) {
-      // If iframe fails, show server-fetched data as fallback
-      renderXFallbackCards(idx);
-    }
+      if (!itemsContainer) return;
+      if (timeEl) timeEl.textContent = 'FETCHING...';
 
-    function refreshXIframe() {
-      const iframe = document.getElementById('xLiveIframe');
-      const timeEl = document.getElementById('xRefreshTime');
-      if (iframe) {
-        // Add cache-busting param to force fresh content
-        const src = iframe.src.split('?')[0];
-        iframe.src = src + '?t=' + Date.now();
+      try {
+        const url = item.type === 'account'
+          ? \`/api/x-timeline/\${encodeURIComponent(item.handle)}\`
+          : \`/api/x-search/\${encodeURIComponent(item.query)}\`;
+
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (data.success && data.tweets && data.tweets.length > 0) {
+          itemsContainer.innerHTML = data.tweets.map(tweet => \`
+            <a href="\${escapeHtml(tweet.url)}" target="_blank" rel="noopener noreferrer" class="x-post">
+              <div class="x-post-header">
+                <span class="x-post-source">@\${escapeHtml(tweet.handle || tweet.author || '')}</span>
+                <span class="x-post-time">\${formatTime(tweet.date)}</span>
+              </div>
+              <div class="x-post-text">\${escapeHtml(tweet.text)}</div>
+              \${tweet.media ? \`<img src="\${escapeHtml(tweet.media)}" style="max-width:100%;border-radius:8px;margin-top:8px;" onerror="this.style.display='none'">\` : ''}
+            </a>
+          \`).join('');
+
+          if (timeEl) timeEl.textContent = 'UPDATED ' + new Date().toLocaleTimeString('en-US', { hour12: false });
+          if (statusEl) {
+            const dot = statusEl.querySelector('.status-dot');
+            if (dot) dot.style.background = 'var(--accent-green)';
+          }
+        } else {
+          // No tweets from API — show RSS fallback data
+          renderXFallbackCards(idx);
+        }
+      } catch {
+        renderXFallbackCards(idx);
       }
-      if (timeEl) timeEl.textContent = 'REFRESHING...';
     }
 
     function renderXFallbackCards(idx) {
-      const container = document.getElementById('xFeedContent');
+      const itemsContainer = document.getElementById('xFeedItems');
+      const timeEl = document.getElementById('xRefreshTime');
+      const statusEl = document.getElementById('xEmbedStatus');
       const item = X_ACCOUNTS[idx];
-      const unofficial = newsData.unofficial || [];
 
-      let posts, statusText, openUrl;
+      if (!itemsContainer) return;
+
+      const unofficial = newsData.unofficial || [];
+      let posts;
+
       if (item.type === 'account') {
         posts = unofficial.filter(p => !p.isMonitoring && (p.handle === item.handle || (p.source && p.source === '@' + item.handle)));
-        statusText = 'RSS DATA — @' + item.handle.toUpperCase();
-        openUrl = 'https://x.com/' + item.handle;
       } else {
         const q = item.query.toLowerCase().split(' OR ')[0].trim();
         posts = unofficial.filter(p => {
@@ -2220,18 +2214,10 @@ export function getHTML() {
           const text = ((p.title || '') + ' ' + (p.source || '') + ' ' + (p.searchQuery || '')).toLowerCase();
           return text.includes(q) || q.split(' ').some(w => w.length > 3 && text.includes(w));
         });
-        statusText = 'RSS DATA — "' + escapeHtml(item.query).toUpperCase() + '"';
-        openUrl = 'https://x.com/search?q=' + encodeURIComponent(item.query) + '&f=live';
       }
 
-      let html = \`
-        <div class="x-embed-status">
-          <span style="width:5px;height:5px;background:var(--accent-amber);border-radius:50%;"></span>
-          <span>\${statusText} (\${posts.length} posts)</span>
-        </div>\`;
-
       if (posts.length > 0) {
-        html += '<div class="x-feed-items" style="flex:1;overflow-y:auto;">' + posts.slice(0, 30).map(post => \`
+        itemsContainer.innerHTML = posts.slice(0, 30).map(post => \`
           <a href="\${escapeHtml(post.link)}" target="_blank" rel="noopener noreferrer" class="x-post">
             <div class="x-post-header">
               <span class="x-post-source">\${escapeHtml(post.source || 'X')}</span>
@@ -2239,23 +2225,26 @@ export function getHTML() {
             </div>
             <div class="x-post-text">\${escapeHtml(post.title)}</div>
             \${post.description && post.description !== post.title ? '<div class="x-post-desc">' + escapeHtml(post.description).slice(0, 250) + '</div>' : ''}
-          </a>\`).join('') + '</div>';
+          </a>\`).join('');
       } else {
-        html += \`<div class="x-empty-state"><div style="font-size:28px;margin-bottom:10px;opacity:0.2;">&#120143;</div>No posts available yet</div>\`;
+        itemsContainer.innerHTML = \`
+          <div class="x-empty-state">
+            <div style="font-size:28px;margin-bottom:10px;opacity:0.2;">&#120143;</div>
+            <div>Connecting to X feeds...</div>
+            <div style="font-size:10px;margin-top:8px;color:var(--text-muted);">Posts will appear when sources respond</div>
+          </div>\`;
       }
 
-      html += \`<div class="x-iframe-footer">
-        <button class="x-refresh-btn" onclick="renderXEmbed(\${idx})">&#8635; RETRY LIVE</button>
-        <a href="\${openUrl}" target="_blank" rel="noopener noreferrer" class="x-open-btn">OPEN ON X &rarr;</a>
-      </div>\`;
-
-      container.innerHTML = html;
+      if (timeEl) timeEl.textContent = posts.length > 0 ? 'RSS FALLBACK' : 'WAITING...';
+      if (statusEl) {
+        const dot = statusEl.querySelector('.status-dot');
+        if (dot) dot.style.background = posts.length > 0 ? 'var(--accent-amber)' : 'var(--accent-red)';
+      }
     }
 
     function renderXFeed() {
-      // Don't re-render iframe on news data update — only refresh if showing fallback cards
-      const iframe = document.getElementById('xLiveIframe');
-      if (!iframe) renderXEmbed(currentXTab);
+      // Re-render current tab when news data updates
+      loadXFeedData(currentXTab);
     }
 
     // Refresh news data every 2 minutes for real-time feel
@@ -2285,7 +2274,7 @@ export function getHTML() {
     let camClockTimer = null;
 
     // YouTube embed params that hide all branding/controls
-    const YT_PARAMS = 'autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&iv_load_policy=3&showinfo=0&fs=0&disablekb=1&playsinline=1';
+    const YT_PARAMS = 'autoplay=1&mute=1&controls=1&modestbranding=1&rel=0&iv_load_policy=3&showinfo=0&fs=1&disablekb=0&playsinline=1';
 
     function buildCamTabs() {
       const container = document.getElementById('camsTabs');

@@ -711,12 +711,68 @@ export function getHTML() {
     .x-search-tab:hover { color: var(--text-secondary); }
     .x-search-tab.active { color: #1d9bf0; border-bottom-color: #1d9bf0; }
 
-    .x-embed-frame {
+    .x-live-iframe {
       width: 100%;
       border: none;
       flex: 1;
       min-height: 400px;
       background: var(--bg-primary);
+    }
+
+    .x-embed-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      background: rgba(29,155,240,0.04);
+      border-bottom: 1px solid var(--border-dim);
+      font-size: 9px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      letter-spacing: 0.5px;
+    }
+
+    .x-iframe-footer {
+      display: flex;
+      border-top: 1px solid var(--border-dim);
+    }
+
+    .x-refresh-btn {
+      flex: 1;
+      padding: 10px;
+      background: none;
+      border: none;
+      border-right: 1px solid var(--border-dim);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .x-refresh-btn:hover {
+      background: rgba(29,155,240,0.06);
+      color: #1d9bf0;
+    }
+
+    .x-open-btn {
+      flex: 1;
+      padding: 10px;
+      background: none;
+      color: #1d9bf0;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 1px;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s;
+    }
+
+    .x-open-btn:hover {
+      background: rgba(29,155,240,0.08);
     }
 
     .x-feed-items {
@@ -809,14 +865,9 @@ export function getHTML() {
       line-height: 1.6;
     }
 
-    /* Twitter native embed overrides */
-    #xEmbedTarget {
-      flex: 1;
-      overflow-y: auto;
-    }
-
-    #xEmbedTarget iframe {
-      max-width: 100% !important;
+    /* Iframe overrides */
+    .x-live-iframe {
+      color-scheme: dark;
     }
 
     /* ======== AI CHAT PANEL ======== */
@@ -1157,9 +1208,12 @@ export function getHTML() {
         min-height: 0;
       }
 
-      /* X feed mobile — full height */
+      /* X feed mobile — full height iframe */
       .x-feed-panel {
         min-height: calc(100vh - 180px);
+      }
+      .x-live-iframe {
+        min-height: calc(100vh - 280px);
       }
       .x-search-tabs {
         flex-wrap: nowrap;
@@ -1170,6 +1224,19 @@ export function getHTML() {
         font-size: 10px;
         padding: 10px 14px;
         min-height: 40px;
+      }
+      .x-embed-status {
+        font-size: 10px;
+        padding: 8px 14px;
+      }
+      .x-iframe-footer {
+        position: sticky;
+        bottom: 0;
+        background: var(--bg-secondary);
+      }
+      .x-refresh-btn, .x-open-btn {
+        min-height: 44px;
+        font-size: 11px;
       }
       .x-post {
         padding: 14px 14px;
@@ -1782,19 +1849,10 @@ export function getHTML() {
     }
 
     // ========================================================================
-    // X / TWITTER EMBEDDED FEED — Hybrid: native embed + server data fallback
+    // X / TWITTER FEED — Real-time inline via server-side proxy
     // ========================================================================
     let currentXTab = 0;
-    let twttrReady = false;
-    let embedFailedAccounts = new Set();
-
-    // Track when twttr (Twitter widgets.js) is ready
-    window.twttr = window.twttr || {};
-    window.twttr.ready = window.twttr.ready || function(fn) {
-      if (window.twttr && window.twttr.widgets) { fn(window.twttr); twttrReady = true; }
-      else { window.__twttr_ready_queue = window.__twttr_ready_queue || []; window.__twttr_ready_queue.push(fn); }
-    };
-    window.twttr.ready(function() { twttrReady = true; });
+    let xIframeAutoRefreshTimer = null;
 
     function buildXSearchTabs() {
       const container = document.getElementById('xSearchTabs');
@@ -1813,142 +1871,116 @@ export function getHTML() {
     function renderXEmbed(idx) {
       const container = document.getElementById('xFeedContent');
       const item = X_ACCOUNTS[idx];
-      const unofficial = newsData.unofficial || [];
+
+      // Clear any existing auto-refresh timer
+      if (xIframeAutoRefreshTimer) clearInterval(xIframeAutoRefreshTimer);
 
       if (item.type === 'account') {
-        // Try native Twitter timeline embed first, with server-data fallback
-        const hasServerData = unofficial.some(post =>
-          post.handle === item.handle || (post.source && post.source === '@' + item.handle)
-        );
-        const embedFailed = embedFailedAccounts.has(item.handle);
-
-        if (!embedFailed) {
-          // Attempt native Twitter embed
-          container.innerHTML = \`
-            <div class="x-embed-status" style="display:flex;align-items:center;gap:6px;padding:6px 14px;background:rgba(29,155,240,0.04);border-bottom:1px solid var(--border-dim);font-size:9px;color:var(--text-muted);font-family:var(--font-mono);">
-              <span class="status-dot" style="width:5px;height:5px;background:#1d9bf0;border-radius:50%;"></span>
-              LOADING NATIVE X TIMELINE — @\${item.handle.toUpperCase()}
-            </div>
-            <div id="xEmbedTarget" style="flex:1;overflow-y:auto;">
-              <a class="twitter-timeline"
-                 data-theme="dark"
-                 data-chrome="noheader nofooter noborders transparent"
-                 data-height="600"
-                 href="https://twitter.com/\${item.handle}">
-                <div class="briefing-loading" style="padding:30px;">
-                  <div class="spinner"></div>
-                  Connecting to X...
-                </div>
-              </a>
-            </div>
-            <div style="padding:6px 14px;border-top:1px solid var(--border-dim);">
-              <a href="https://x.com/\${item.handle}" target="_blank" rel="noopener noreferrer"
-                 style="display:flex;align-items:center;justify-content:center;gap:6px;padding:6px 10px;background:rgba(29,155,240,0.06);border:1px solid rgba(29,155,240,0.15);color:#1d9bf0;text-decoration:none;font-size:9px;letter-spacing:1px;font-family:var(--font-mono);">
-                OPEN @\${item.handle.toUpperCase()} ON X &rarr;
-              </a>
-            </div>\`;
-
-          // Ask Twitter to render the embed
-          if (twttrReady && window.twttr && window.twttr.widgets) {
-            window.twttr.widgets.load(document.getElementById('xEmbedTarget'));
-          }
-
-          // Fallback timer: if embed doesn't render in 8s, switch to server data
-          setTimeout(() => {
-            const target = document.getElementById('xEmbedTarget');
-            if (!target) return;
-            // Check if Twitter actually rendered an iframe
-            const iframe = target.querySelector('iframe.twitter-timeline-rendered, iframe[id^="twitter-widget"]');
-            if (!iframe) {
-              embedFailedAccounts.add(item.handle);
-              if (currentXTab === idx) renderXEmbedFallback(idx);
-            } else {
-              // Update status to show it's live
-              const status = container.querySelector('.x-embed-status');
-              if (status) status.innerHTML = '<span class="status-dot" style="width:5px;height:5px;background:var(--accent-green);border-radius:50%;animation:blink 2s infinite;"></span> LIVE NATIVE X TIMELINE — @' + item.handle.toUpperCase();
-            }
-          }, 8000);
-        } else {
-          renderXEmbedFallback(idx);
-        }
-      } else {
-        // Search query — show link to live X search + matched posts from server
-        renderXSearchFallback(idx);
-      }
-    }
-
-    function renderXEmbedFallback(idx) {
-      const container = document.getElementById('xFeedContent');
-      const item = X_ACCOUNTS[idx];
-      const unofficial = newsData.unofficial || [];
-      const accountPosts = unofficial.filter(post =>
-        post.handle === item.handle || (post.source && post.source === '@' + item.handle)
-      ).filter(p => !p.isMonitoring);
-
-      let html = \`
-        <div class="x-embed-status" style="display:flex;align-items:center;gap:6px;padding:6px 14px;background:rgba(29,155,240,0.04);border-bottom:1px solid var(--border-dim);font-size:9px;color:var(--text-muted);font-family:var(--font-mono);">
-          <span style="width:5px;height:5px;background:var(--accent-amber);border-radius:50;"></span>
-          SERVER-FETCHED — \${accountPosts.length} POSTS FROM @\${item.handle.toUpperCase()}
-        </div>
-        <div style="padding:8px 14px;border-bottom:1px solid var(--border-dim);">
-          <a href="https://x.com/\${item.handle}" target="_blank" rel="noopener noreferrer"
-             class="x-profile-link">
-            VIEW @\${item.handle.toUpperCase()} LIVE ON X &rarr;
-          </a>
-        </div>\`;
-
-      if (accountPosts.length > 0) {
-        html += '<div class="x-feed-items">' + accountPosts.slice(0, 25).map(post => \`
-          <a href="\${escapeHtml(post.link)}" target="_blank" rel="noopener noreferrer" class="x-post">
-            <div class="x-post-header">
-              <span class="x-post-source">@\${escapeHtml(item.handle)}</span>
-              <span class="x-post-time">\${formatTime(post.date)}</span>
-            </div>
-            <div class="x-post-text">\${escapeHtml(post.title)}</div>
-            \${post.description && post.description !== post.title ? '<div class="x-post-desc">' + escapeHtml(post.description).slice(0, 250) + '</div>' : ''}
-          </a>\`).join('') + '</div>';
-      } else {
-        html += \`
-          <div class="x-empty-state">
-            <div style="font-size:28px;margin-bottom:10px;opacity:0.2;">&#120143;</div>
-            <strong>@\${escapeHtml(item.handle)}</strong><br>
-            <span style="font-size:10px;margin-top:4px;display:block;">Fetching posts via RSS bridges. If none appear, view directly on X.</span>
-            <a href="https://x.com/\${item.handle}" target="_blank" rel="noopener noreferrer"
-               style="color:#1d9bf0;text-decoration:none;margin-top:12px;display:inline-block;font-size:11px;">
-              Open @\${escapeHtml(item.handle)} on X &rarr;
+        // Load real X timeline via server-side proxy (rendered inline in iframe)
+        const proxyUrl = '/api/x-timeline/' + encodeURIComponent(item.handle);
+        container.innerHTML = \`
+          <div class="x-embed-status" id="xEmbedStatus">
+            <span class="status-dot" style="width:5px;height:5px;background:#1d9bf0;border-radius:50%;animation:blink 2s infinite;"></span>
+            <span>LIVE TIMELINE — @\${item.handle.toUpperCase()}</span>
+            <span style="margin-left:auto;font-size:8px;opacity:0.6;" id="xRefreshTime">LOADING...</span>
+          </div>
+          <iframe src="\${proxyUrl}" class="x-live-iframe" id="xLiveIframe"
+                  sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+                  loading="eager"
+                  onload="onXIframeLoad()"
+                  onerror="onXIframeError(\${idx})"></iframe>
+          <div class="x-iframe-footer">
+            <button class="x-refresh-btn" onclick="refreshXIframe()">&#8635; REFRESH</button>
+            <a href="https://x.com/\${item.handle}" target="_blank" rel="noopener noreferrer" class="x-open-btn">
+              OPEN ON X &rarr;
             </a>
           </div>\`;
-      }
 
-      container.innerHTML = html;
+        // Auto-refresh iframe every 2 minutes
+        xIframeAutoRefreshTimer = setInterval(refreshXIframe, 2 * 60 * 1000);
+
+      } else {
+        // Search query — load via server-side search proxy
+        const proxyUrl = '/api/x-search/' + encodeURIComponent(item.query);
+        container.innerHTML = \`
+          <div class="x-embed-status" id="xEmbedStatus">
+            <span class="status-dot" style="width:5px;height:5px;background:#1d9bf0;border-radius:50%;animation:blink 2s infinite;"></span>
+            <span>LIVE SEARCH — "\${escapeHtml(item.query).toUpperCase()}"</span>
+            <span style="margin-left:auto;font-size:8px;opacity:0.6;" id="xRefreshTime">LOADING...</span>
+          </div>
+          <iframe src="\${proxyUrl}" class="x-live-iframe" id="xLiveIframe"
+                  sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+                  loading="eager"
+                  onload="onXIframeLoad()"
+                  onerror="onXIframeError(\${idx})"></iframe>
+          <div class="x-iframe-footer">
+            <button class="x-refresh-btn" onclick="refreshXIframe()">&#8635; REFRESH</button>
+            <a href="https://x.com/search?q=\${encodeURIComponent(item.query)}&f=live" target="_blank" rel="noopener noreferrer" class="x-open-btn">
+              SEARCH ON X &rarr;
+            </a>
+          </div>\`;
+
+        xIframeAutoRefreshTimer = setInterval(refreshXIframe, 2 * 60 * 1000);
+      }
     }
 
-    function renderXSearchFallback(idx) {
+    function onXIframeLoad() {
+      const status = document.getElementById('xEmbedStatus');
+      const timeEl = document.getElementById('xRefreshTime');
+      if (status) {
+        const dot = status.querySelector('.status-dot');
+        if (dot) dot.style.background = 'var(--accent-green)';
+      }
+      if (timeEl) {
+        timeEl.textContent = 'UPDATED ' + new Date().toLocaleTimeString('en-US', { hour12: false });
+      }
+    }
+
+    function onXIframeError(idx) {
+      // If iframe fails, show server-fetched data as fallback
+      renderXFallbackCards(idx);
+    }
+
+    function refreshXIframe() {
+      const iframe = document.getElementById('xLiveIframe');
+      const timeEl = document.getElementById('xRefreshTime');
+      if (iframe) {
+        // Add cache-busting param to force fresh content
+        const src = iframe.src.split('?')[0];
+        iframe.src = src + '?t=' + Date.now();
+      }
+      if (timeEl) timeEl.textContent = 'REFRESHING...';
+    }
+
+    function renderXFallbackCards(idx) {
       const container = document.getElementById('xFeedContent');
       const item = X_ACCOUNTS[idx];
       const unofficial = newsData.unofficial || [];
-      const encodedQuery = encodeURIComponent(item.query);
-      const q = item.query.toLowerCase().split(' OR ')[0].trim();
-      const xItems = unofficial.filter(post => {
-        if (post.isMonitoring) return false;
-        const text = ((post.title || '') + ' ' + (post.source || '') + ' ' + (post.searchQuery || '')).toLowerCase();
-        return text.includes(q) || q.split(' ').some(w => w.length > 3 && text.includes(w));
-      });
+
+      let posts, statusText, openUrl;
+      if (item.type === 'account') {
+        posts = unofficial.filter(p => !p.isMonitoring && (p.handle === item.handle || (p.source && p.source === '@' + item.handle)));
+        statusText = 'RSS DATA — @' + item.handle.toUpperCase();
+        openUrl = 'https://x.com/' + item.handle;
+      } else {
+        const q = item.query.toLowerCase().split(' OR ')[0].trim();
+        posts = unofficial.filter(p => {
+          if (p.isMonitoring) return false;
+          const text = ((p.title || '') + ' ' + (p.source || '') + ' ' + (p.searchQuery || '')).toLowerCase();
+          return text.includes(q) || q.split(' ').some(w => w.length > 3 && text.includes(w));
+        });
+        statusText = 'RSS DATA — "' + escapeHtml(item.query).toUpperCase() + '"';
+        openUrl = 'https://x.com/search?q=' + encodeURIComponent(item.query) + '&f=live';
+      }
 
       let html = \`
-        <div class="x-embed-status" style="display:flex;align-items:center;gap:6px;padding:6px 14px;background:rgba(29,155,240,0.04);border-bottom:1px solid var(--border-dim);font-size:9px;color:var(--text-muted);font-family:var(--font-mono);">
+        <div class="x-embed-status">
           <span style="width:5px;height:5px;background:var(--accent-amber);border-radius:50%;"></span>
-          X SEARCH — \${xItems.length} RESULTS FOR "\${escapeHtml(item.query).toUpperCase()}"
-        </div>
-        <div style="padding:8px 14px;border-bottom:1px solid var(--border-dim);">
-          <a href="https://x.com/search?q=\${encodedQuery}&f=live" target="_blank" rel="noopener noreferrer"
-             class="x-profile-link">
-            OPEN LIVE X SEARCH: \${escapeHtml(item.query)} &rarr;
-          </a>
+          <span>\${statusText} (\${posts.length} posts)</span>
         </div>\`;
 
-      if (xItems.length > 0) {
-        html += '<div class="x-feed-items">' + xItems.slice(0, 25).map(post => \`
+      if (posts.length > 0) {
+        html += '<div class="x-feed-items" style="flex:1;overflow-y:auto;">' + posts.slice(0, 30).map(post => \`
           <a href="\${escapeHtml(post.link)}" target="_blank" rel="noopener noreferrer" class="x-post">
             <div class="x-post-header">
               <span class="x-post-source">\${escapeHtml(post.source || 'X')}</span>
@@ -1958,22 +1990,24 @@ export function getHTML() {
             \${post.description && post.description !== post.title ? '<div class="x-post-desc">' + escapeHtml(post.description).slice(0, 250) + '</div>' : ''}
           </a>\`).join('') + '</div>';
       } else {
-        html += \`
-          <div class="x-empty-state">
-            <div style="font-size:28px;margin-bottom:10px;opacity:0.2;">&#120143;</div>
-            <strong style="color:#1d9bf0">\${escapeHtml(item.query)}</strong><br>
-            <span style="font-size:10px;margin-top:4px;display:block;">Click above to view live results directly on X.</span>
-          </div>\`;
+        html += \`<div class="x-empty-state"><div style="font-size:28px;margin-bottom:10px;opacity:0.2;">&#120143;</div>No posts available yet</div>\`;
       }
+
+      html += \`<div class="x-iframe-footer">
+        <button class="x-refresh-btn" onclick="renderXEmbed(\${idx})">&#8635; RETRY LIVE</button>
+        <a href="\${openUrl}" target="_blank" rel="noopener noreferrer" class="x-open-btn">OPEN ON X &rarr;</a>
+      </div>\`;
 
       container.innerHTML = html;
     }
 
     function renderXFeed() {
-      renderXEmbed(currentXTab);
+      // Don't re-render iframe on news data update — only refresh if showing fallback cards
+      const iframe = document.getElementById('xLiveIframe');
+      if (!iframe) renderXEmbed(currentXTab);
     }
 
-    // More frequent refresh for real-time feel (every 2 min)
+    // Refresh news data every 2 minutes for real-time feel
     setInterval(loadNews, 2 * 60 * 1000);
 
     // ========================================================================
@@ -2320,37 +2354,6 @@ export function getHTML() {
     })();
 
     function showError(msg) { console.error('[IRAN WATCHER]', msg); }
-  </script>
-
-  <!-- Twitter widgets.js for native timeline embeds -->
-  <script>
-    window.twttr = (function(d, s, id) {
-      var js, fjs = d.getElementsByTagName(s)[0], t = window.twttr || {};
-      if (d.getElementById(id)) return t;
-      js = d.createElement(s); js.id = id;
-      js.src = "https://platform.twitter.com/widgets.js";
-      js.async = true;
-      fjs.parentNode.insertBefore(js, fjs);
-      t._e = [];
-      t.ready = function(f) {
-        t._e.push(f);
-      };
-      return t;
-    }(document, "script", "twitter-wjs"));
-
-    window.twttr.ready(function(twttr) {
-      twttrReady = true;
-      // Process any queued ready callbacks
-      if (window.__twttr_ready_queue) {
-        window.__twttr_ready_queue.forEach(function(fn) { fn(twttr); });
-        window.__twttr_ready_queue = [];
-      }
-      // Re-render current X tab to use native embed
-      if (typeof renderXEmbed === 'function') {
-        embedFailedAccounts.clear();
-        renderXEmbed(currentXTab);
-      }
-    });
   </script>
 </body>
 </html>`;

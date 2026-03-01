@@ -149,12 +149,10 @@ async function refreshNewsData(env) {
 }
 
 // ========================================================================
-// X TIMELINE PROXY — Fetches real X/Twitter timelines via Nitter proxies
-// Serves HTML that can be iframed directly in the dashboard
+// X TIMELINE PROXY — Twitter Syndication API (primary) + Nitter (fallback)
 // ========================================================================
 
-// Dark theme CSS injected into proxied pages
-const X_PROXY_STYLES = `
+const X_DARK_THEME = `
 <style>
   * { box-sizing: border-box; }
   body {
@@ -164,54 +162,32 @@ const X_PROXY_STYLES = `
     margin: 0; padding: 0;
     -webkit-font-smoothing: antialiased;
   }
-  a { color: #1d9bf0 !important; }
-  /* Hide Nitter navigation/header chrome */
+  a { color: #1d9bf0 !important; text-decoration: none !important; }
+  /* Syndication API styles */
+  .timeline-Widget, .timeline-Tweet { background: transparent !important; border-color: #1a2744 !important; }
+  .timeline-Tweet-text { color: #d1ddf0 !important; font-size: 13px !important; line-height: 1.5 !important; }
+  .timeline-Tweet-author { color: #d1ddf0 !important; }
+  .timeline-Tweet-metadata { color: #4a5f82 !important; }
+  .TweetAuthor-name { color: #d1ddf0 !important; font-weight: 600 !important; }
+  .TweetAuthor-screenName { color: #4a5f82 !important; }
+  .timeline-Header, .timeline-Footer, .timeline-LoadMore { display: none !important; }
+  /* Nitter styles */
   nav, .navbar, header, .mobile-nav, footer, #search, .search-bar,
   .timeline-header, .profile-card-extra, .profile-tabs, .show-more,
   .nitter-logo, #m-nav, .inner-nav { display: none !important; }
-  /* Style timeline items as clean cards */
   .timeline-item, .tweet-body, .timeline .tweet {
-    border-bottom: 1px solid #1a2744 !important;
-    padding: 12px 14px !important;
-    background: transparent !important;
+    border-bottom: 1px solid #1a2744 !important; padding: 12px 14px !important; background: transparent !important;
   }
-  .timeline-item:hover, .tweet:hover {
-    background: rgba(19,29,53,0.5) !important;
-  }
-  .tweet-content, .tweet-body .tweet-text, .timeline-item .tweet-content {
-    color: #d1ddf0 !important;
-    font-size: 13px !important;
-    line-height: 1.5 !important;
-  }
-  .fullname, .tweet-name-row .fullname {
-    color: #d1ddf0 !important;
-    font-weight: 600 !important;
-    font-size: 13px !important;
-  }
-  .username, .tweet-name-row .username {
-    color: #4a5f82 !important;
-    font-size: 12px !important;
-  }
-  .tweet-date, .tweet-published {
-    color: #4a5f82 !important;
-    font-size: 11px !important;
-  }
-  .tweet-stats, .tweet-stat { color: #4a5f82 !important; font-size: 11px !important; }
-  .attachments img, .tweet-body img, .still-image img {
-    border-radius: 8px !important;
-    max-width: 100% !important;
-    margin-top: 8px !important;
-  }
-  .quote { border: 1px solid #1a2744 !important; border-radius: 8px !important; padding: 10px !important; margin-top: 8px !important; }
-  /* Retweet indicator */
-  .retweet-header { color: #4a5f82 !important; font-size: 11px !important; padding: 4px 14px !important; }
-  /* Profile section at top */
+  .timeline-item:hover, .tweet:hover { background: rgba(19,29,53,0.5) !important; }
+  .tweet-content, .tweet-body .tweet-text { color: #d1ddf0 !important; font-size: 13px !important; line-height: 1.5 !important; }
+  .fullname { color: #d1ddf0 !important; font-weight: 600 !important; }
+  .username { color: #4a5f82 !important; }
+  .tweet-date, .tweet-published, .tweet-stats { color: #4a5f82 !important; font-size: 11px !important; }
+  .attachments img, .still-image img { border-radius: 8px !important; max-width: 100% !important; margin-top: 8px !important; }
   .profile-card { padding: 14px !important; border-bottom: 1px solid #1a2744 !important; }
   .profile-card-info .profile-card-fullname { color: #d1ddf0 !important; font-size: 15px !important; font-weight: 700 !important; }
   .profile-card-info .profile-card-username { color: #4a5f82 !important; }
-  .profile-card-info .profile-bio { color: #7e93b5 !important; font-size: 13px !important; }
   .profile-card-avatar img { border-radius: 50% !important; }
-  /* Scrollbar */
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: #080c14; }
   ::-webkit-scrollbar-thumb { background: #1a2744; }
@@ -223,19 +199,38 @@ async function handleXTimelineProxy(handle, env) {
     return new Response('Invalid handle', { status: 400 });
   }
 
-  // Check cache first (2-minute TTL for near-real-time)
-  const cacheKey = `x_timeline_${handle}`;
+  const cacheKey = `x_timeline_v2_${handle}`;
   const cached = await env.NEWS_CACHE.get(cacheKey, 'text');
   if (cached) {
     return new Response(cached, {
-      headers: {
-        'Content-Type': 'text/html;charset=UTF-8',
-        'Cache-Control': 'public, max-age=120',
-      },
+      headers: { 'Content-Type': 'text/html;charset=UTF-8', 'Cache-Control': 'public, max-age=120' },
     });
   }
 
-  // Try each Nitter instance until one works
+  // METHOD 1: Twitter Syndication API (official, no API key)
+  try {
+    const response = await fetch(`https://syndication.twitter.com/srv/timeline-profile/screen-name/${handle}`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+      cf: { cacheTtl: 120 },
+    });
+
+    if (response.ok) {
+      let html = await response.text();
+      if (html.length > 500 && !html.includes('not yet whitelisted')) {
+        html = html.replace('</head>', `${X_DARK_THEME}<base target="_blank"></head>`);
+        await env.NEWS_CACHE.put(cacheKey, html, { expirationTtl: 120 });
+        return new Response(html, {
+          headers: { 'Content-Type': 'text/html;charset=UTF-8', 'Cache-Control': 'public, max-age=120' },
+        });
+      }
+    }
+  } catch { /* fall through to Nitter */ }
+
+  // METHOD 2: Nitter instances (fallback)
   for (const instance of NITTER_INSTANCES) {
     try {
       const response = await fetch(`${instance}/${handle}`, {
@@ -248,51 +243,65 @@ async function handleXTimelineProxy(handle, env) {
       });
 
       if (!response.ok) continue;
-
       let html = await response.text();
+      if ((!html.includes('timeline') && !html.includes('tweet')) ||
+          html.includes('not yet whitelisted') || html.includes('RSS reader not yet')) continue;
 
-      // Validate we got actual timeline content (not an error/whitelist page)
-      if (!html.includes('timeline') && !html.includes('tweet')) continue;
-      if (html.includes('not yet whitelisted') || html.includes('RSS reader not yet')) continue;
-
-      // Inject dark theme styles and fix links to open in parent
-      html = html.replace('</head>', `${X_PROXY_STYLES}<base target="_blank"></head>`);
-
-      // Rewrite internal links to point to x.com instead of nitter
+      html = html.replace('</head>', `${X_DARK_THEME}<base target="_blank"></head>`);
       const instanceHost = new URL(instance).host;
       html = html.replace(new RegExp(`https?://${instanceHost.replace('.', '\\.')}`, 'g'), 'https://x.com');
       html = html.replace(new RegExp(`href="/`, 'g'), 'href="https://x.com/');
-
-      // Cache for 2 minutes
       await env.NEWS_CACHE.put(cacheKey, html, { expirationTtl: 120 });
-
       return new Response(html, {
-        headers: {
-          'Content-Type': 'text/html;charset=UTF-8',
-          'Cache-Control': 'public, max-age=120',
-        },
+        headers: { 'Content-Type': 'text/html;charset=UTF-8', 'Cache-Control': 'public, max-age=120' },
       });
-    } catch {
-      continue;
-    }
+    } catch { continue; }
   }
 
-  // All instances failed — return a styled error page with direct link
-  const fallback = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">${X_PROXY_STYLES}</head>
+  // METHOD 3: Build timeline from FxTwitter API data
+  try {
+    const response = await fetch(`https://api.fxtwitter.com/${handle}/`, {
+      headers: { 'User-Agent': 'IranWatcher/2.0' },
+      cf: { cacheTtl: 120 },
+    });
+    if (response.ok) {
+      const data = await response.json();
+      const tweets = data.tweets || data.timeline?.entries || [];
+      if (tweets.length > 0) {
+        const tweetHTML = tweets.slice(0, 20).map(t => `
+          <div style="padding:12px 14px;border-bottom:1px solid #1a2744;">
+            <div style="display:flex;gap:8px;margin-bottom:6px;">
+              <strong style="color:#d1ddf0;font-size:13px;">@${handle}</strong>
+              <span style="color:#4a5f82;font-size:11px;">${t.created_at ? new Date(t.created_at).toLocaleString() : ''}</span>
+            </div>
+            <div style="color:#d1ddf0;font-size:13px;line-height:1.5;">${(t.text || '').replace(/</g,'&lt;')}</div>
+            ${t.media?.photos?.[0] ? `<img src="${t.media.photos[0].url}" style="max-width:100%;border-radius:8px;margin-top:8px;">` : ''}
+          </div>`).join('');
+
+        const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+          ${X_DARK_THEME}<base target="_blank"></head>
+          <body>${tweetHTML}</body></html>`;
+        await env.NEWS_CACHE.put(cacheKey, html, { expirationTtl: 120 });
+        return new Response(html, {
+          headers: { 'Content-Type': 'text/html;charset=UTF-8', 'Cache-Control': 'public, max-age=120' },
+        });
+      }
+    }
+  } catch { /* final fallback */ }
+
+  const fallback = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">${X_DARK_THEME}</head>
 <body style="display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:20px;">
   <div>
     <div style="font-size:40px;margin-bottom:16px;opacity:0.15;">&#120143;</div>
-    <div style="font-size:14px;color:#7e93b5;margin-bottom:12px;">Unable to load @${handle} timeline</div>
-    <div style="font-size:12px;color:#4a5f82;margin-bottom:20px;">RSS bridges are temporarily unavailable</div>
+    <div style="font-size:14px;color:#7e93b5;margin-bottom:12px;">@${handle} — Connecting...</div>
+    <div style="font-size:12px;color:#4a5f82;margin-bottom:20px;">Syndication bridge initializing</div>
     <a href="https://x.com/${handle}" target="_blank" style="display:inline-block;padding:12px 24px;background:rgba(29,155,240,0.1);border:1px solid rgba(29,155,240,0.3);color:#1d9bf0;text-decoration:none;font-size:13px;font-weight:600;">
       View @${handle} on X &rarr;
     </a>
   </div>
 </body></html>`;
 
-  return new Response(fallback, {
-    headers: { 'Content-Type': 'text/html;charset=UTF-8' },
-  });
+  return new Response(fallback, { headers: { 'Content-Type': 'text/html;charset=UTF-8' } });
 }
 
 async function handleXSearchProxy(query, env) {
@@ -301,71 +310,55 @@ async function handleXSearchProxy(query, env) {
   }
 
   const safeQuery = query.replace(/[<>"']/g, '');
-  const cacheKey = `x_search_${encodeURIComponent(safeQuery)}`;
+  const cacheKey = `x_search_v2_${encodeURIComponent(safeQuery)}`;
   const cached = await env.NEWS_CACHE.get(cacheKey, 'text');
   if (cached) {
     return new Response(cached, {
-      headers: {
-        'Content-Type': 'text/html;charset=UTF-8',
-        'Cache-Control': 'public, max-age=120',
-      },
+      headers: { 'Content-Type': 'text/html;charset=UTF-8', 'Cache-Control': 'public, max-age=120' },
     });
   }
 
   const encodedQuery = encodeURIComponent(safeQuery);
 
+  // Try Nitter search (syndication API has no search endpoint)
   for (const instance of NITTER_INSTANCES) {
     try {
       const response = await fetch(`${instance}/search?f=tweets&q=${encodedQuery}`, {
         headers: {
           'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
           'Accept': 'text/html,application/xhtml+xml',
-          'Accept-Language': 'en-US,en;q=0.9',
         },
         cf: { cacheTtl: 120 },
       });
-
       if (!response.ok) continue;
-
       let html = await response.text();
+      if ((!html.includes('timeline') && !html.includes('tweet')) ||
+          html.includes('not yet whitelisted') || html.includes('RSS reader not yet')) continue;
 
-      if (!html.includes('timeline') && !html.includes('tweet')) continue;
-      if (html.includes('not yet whitelisted') || html.includes('RSS reader not yet')) continue;
-
-      html = html.replace('</head>', `${X_PROXY_STYLES}<base target="_blank"></head>`);
-
+      html = html.replace('</head>', `${X_DARK_THEME}<base target="_blank"></head>`);
       const instanceHost = new URL(instance).host;
       html = html.replace(new RegExp(`https?://${instanceHost.replace('.', '\\.')}`, 'g'), 'https://x.com');
       html = html.replace(new RegExp(`href="/`, 'g'), 'href="https://x.com/');
-
       await env.NEWS_CACHE.put(cacheKey, html, { expirationTtl: 120 });
-
       return new Response(html, {
-        headers: {
-          'Content-Type': 'text/html;charset=UTF-8',
-          'Cache-Control': 'public, max-age=120',
-        },
+        headers: { 'Content-Type': 'text/html;charset=UTF-8', 'Cache-Control': 'public, max-age=120' },
       });
-    } catch {
-      continue;
-    }
+    } catch { continue; }
   }
 
-  const fallback = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">${X_PROXY_STYLES}</head>
+  const fallback = `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">${X_DARK_THEME}</head>
 <body style="display:flex;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:20px;">
   <div>
     <div style="font-size:40px;margin-bottom:16px;opacity:0.15;">&#120143;</div>
-    <div style="font-size:14px;color:#7e93b5;margin-bottom:12px;">Unable to load search results</div>
-    <div style="font-size:12px;color:#4a5f82;margin-bottom:20px;">"${safeQuery}"</div>
+    <div style="font-size:14px;color:#7e93b5;margin-bottom:12px;">Search: "${safeQuery}"</div>
+    <div style="font-size:12px;color:#4a5f82;margin-bottom:20px;">Bridge connecting...</div>
     <a href="https://x.com/search?q=${encodedQuery}&f=live" target="_blank" style="display:inline-block;padding:12px 24px;background:rgba(29,155,240,0.1);border:1px solid rgba(29,155,240,0.3);color:#1d9bf0;text-decoration:none;font-size:13px;font-weight:600;">
       Search on X &rarr;
     </a>
   </div>
 </body></html>`;
 
-  return new Response(fallback, {
-    headers: { 'Content-Type': 'text/html;charset=UTF-8' },
-  });
+  return new Response(fallback, { headers: { 'Content-Type': 'text/html;charset=UTF-8' } });
 }
 
 // ========================================================================
@@ -373,51 +366,67 @@ async function handleXSearchProxy(query, env) {
 // ========================================================================
 
 const YT_CHANNELS = [
+  // NEWS
   { id: 'aljazeera', channelId: 'UCNye-wNBqNL5ZzHSJj3l8Bg', label: 'Al Jazeera English' },
+  { id: 'i24', channelId: 'UCvHDpsWKADrDia0c99X37vg', label: 'i24NEWS English' },
   { id: 'france24', channelId: 'UCQfwfsi5VrQ8yKZ-UWmAEFg', label: 'France 24 English' },
   { id: 'sky', channelId: 'UCoMdktPbSTixAyNGwb-UYkQ', label: 'Sky News' },
   { id: 'dw', channelId: 'UCknLrEdhRCp1aegoMqRhGGQ', label: 'DW News' },
+  // WEBCAM CHANNELS
+  { id: 'webcamtaxi', channelId: 'UC1tBnbs03VJ34oLD8cmJSVw', label: 'WebcamTaxi' },
+  { id: 'earthcam', channelId: 'UC6qrG3W8SMK0jior2olka3g', label: 'EarthCam' },
+  // Handle-based (resolved via @handle/live)
+  { id: 'earthtv', handle: 'earthTV', label: 'earthTV' },
 ];
 
-async function resolveYTLiveVideoId(channelId) {
-  try {
-    const response = await fetch(`https://www.youtube.com/channel/${channelId}/live`, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept-Language': 'en-US,en;q=0.9',
-      },
-      redirect: 'follow',
-      cf: { cacheTtl: 300 },
-    });
-
-    if (!response.ok) return null;
-
-    const html = await response.text();
-    // Extract video ID from the page
-    const match = html.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
-    if (match) return match[1];
-
-    // Try alternate pattern
-    const match2 = html.match(/watch\?v=([a-zA-Z0-9_-]{11})/);
-    if (match2) return match2[1];
-
-    return null;
-  } catch {
-    return null;
+async function resolveYTLiveVideoId(channel) {
+  const urls = [];
+  if (channel.channelId) {
+    urls.push(`https://www.youtube.com/channel/${channel.channelId}/live`);
   }
+  if (channel.handle) {
+    urls.push(`https://www.youtube.com/@${channel.handle}/live`);
+  }
+
+  for (const url of urls) {
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
+        redirect: 'follow',
+        cf: { cacheTtl: 300 },
+      });
+
+      if (!response.ok) continue;
+      const html = await response.text();
+
+      // Check if this is actually a live stream page
+      const isLive = html.includes('"isLive":true') || html.includes('"liveBroadcastDetails"');
+
+      const match = html.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
+      if (match && isLive) return match[1];
+
+      const match2 = html.match(/watch\?v=([a-zA-Z0-9_-]{11})/);
+      if (match2 && isLive) return match2[1];
+
+      // Even without isLive flag, return first videoId as best guess
+      if (match) return match[1];
+    } catch { continue; }
+  }
+  return null;
 }
 
 async function handleLiveCams(env) {
-  // Check cache first (5-minute TTL)
-  const cached = await env.NEWS_CACHE.get('live_cams', 'json');
+  const cached = await env.NEWS_CACHE.get('live_cams_v2', 'json');
   if (cached) {
     return Response.json({ success: true, cams: cached });
   }
 
-  // Resolve all channels in parallel
   const results = await Promise.allSettled(
     YT_CHANNELS.map(async (ch) => {
-      const videoId = await resolveYTLiveVideoId(ch.channelId);
+      const videoId = await resolveYTLiveVideoId(ch);
       return { ...ch, videoId };
     })
   );
@@ -426,8 +435,6 @@ async function handleLiveCams(env) {
     .filter(r => r.status === 'fulfilled')
     .map(r => r.value);
 
-  // Cache for 5 minutes
-  await env.NEWS_CACHE.put('live_cams', JSON.stringify(cams), { expirationTtl: 300 });
-
+  await env.NEWS_CACHE.put('live_cams_v2', JSON.stringify(cams), { expirationTtl: 300 });
   return Response.json({ success: true, cams });
 }

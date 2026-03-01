@@ -77,9 +77,15 @@ export async function fetchAllNews() {
   const unofficial = results[1].status === 'fulfilled' ? results[1].value : [];
   const google = results[2].status === 'fulfilled' ? results[2].value : [];
 
+  // Filter out any Nitter whitelist error items that leaked through
+  const isClean = (item) => {
+    const t = ((item.title || '') + (item.description || '')).toLowerCase();
+    return !t.includes('whitelisted') && !t.includes('rss reader not yet');
+  };
+
   return {
-    official: [...official, ...google].sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 50),
-    unofficial: unofficial.sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 50),
+    official: [...official, ...google].filter(isClean).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 50),
+    unofficial: unofficial.filter(isClean).sort((a, b) => new Date(b.date) - new Date(a.date)).slice(0, 50),
   };
 }
 

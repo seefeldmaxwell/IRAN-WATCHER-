@@ -520,11 +520,25 @@ export function getHTML() {
 
     .cam-embed iframe {
       position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
+      top: -2px;
+      left: -2px;
+      width: calc(100% + 4px);
+      height: calc(100% + 50px);
       border: none;
+      pointer-events: none;
+    }
+
+    /* Hide YouTube logo + bottom bar */
+    .cam-embed::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 48px;
+      background: linear-gradient(0deg, rgba(4,6,11,0.98) 0%, rgba(4,6,11,0.6) 70%, transparent 100%);
+      z-index: 4;
+      pointer-events: none;
     }
 
     .cam-embed-header {
@@ -536,8 +550,35 @@ export function getHTML() {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 6px 10px;
-      background: linear-gradient(180deg, rgba(4,6,11,0.85) 0%, transparent 100%);
+      padding: 8px 12px;
+      background: linear-gradient(180deg, rgba(4,6,11,0.92) 0%, rgba(4,6,11,0.5) 70%, transparent 100%);
+    }
+
+    .cam-embed-footer {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 12px;
+      pointer-events: none;
+    }
+
+    .cam-embed-loc {
+      font-family: var(--font-mono);
+      font-size: 7px;
+      color: rgba(209, 221, 240, 0.4);
+      letter-spacing: 1px;
+    }
+
+    .cam-embed-time {
+      font-family: var(--font-mono);
+      font-size: 7px;
+      color: rgba(229, 62, 62, 0.6);
+      letter-spacing: 1px;
     }
 
     .cam-embed-label {
@@ -585,29 +626,18 @@ export function getHTML() {
     }
 
     .cam-placeholder-text {
-      font-size: 11px;
-      color: var(--text-muted);
-      margin-bottom: 12px;
-    }
-
-    .cam-external-link {
-      display: inline-block;
-      padding: 8px 18px;
-      background: var(--accent-red-dim);
-      border: 1px solid rgba(229, 62, 62, 0.3);
-      color: var(--accent-red);
-      text-decoration: none;
-      font-family: var(--font-mono);
       font-size: 10px;
-      font-weight: 600;
+      color: var(--text-muted);
+      margin-bottom: 4px;
       letter-spacing: 1px;
-      text-transform: uppercase;
-      transition: all 0.15s;
     }
 
-    .cam-external-link:hover {
-      background: rgba(229, 62, 62, 0.2);
-      border-color: rgba(229, 62, 62, 0.5);
+    .cam-placeholder-sub {
+      font-size: 8px;
+      color: rgba(229, 62, 62, 0.5);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      animation: blink 3s infinite;
     }
 
     .cam-status-bar {
@@ -1756,7 +1786,7 @@ export function getHTML() {
         </div>
       </div>
       <div class="cam-status-bar">
-        <span>AUTO-REFRESH 5 MIN // YOUTUBE + EXTERNAL SOURCES</span>
+        <span>y12.ai SURVEILLANCE GRID // AUTO-REFRESH 5 MIN</span>
         <button class="cam-fullscreen-btn" onclick="toggleCamLayout()">&#9633; EXPAND</button>
       </div>
     </div>
@@ -2234,23 +2264,28 @@ export function getHTML() {
     // ========================================================================
     // LIVE CAMERAS
     // ========================================================================
+    // All cameras are embedded — NO external links
     const LIVE_CAMERAS = [
-      // NEWS CHANNELS (YouTube channel-based live embed)
-      { id: 'aljazeera', label: 'AL JAZEERA', region: 'ME', type: 'yt-channel', channelId: 'UCNye-wNBqNL5ZzHSJj3l8Bg', desc: 'Middle East 24/7 news' },
-      { id: 'france24', label: 'FRANCE 24', region: 'INT', type: 'direct-embed', embedUrl: 'https://www.youtube.com/embed/live_stream?channel=UCQfwfsi5VrQ8yKZ-UWmAEFg', fallbackUrl: 'https://www.france24.com/en/live', desc: 'International news 24/7' },
-      { id: 'sky', label: 'SKY NEWS', region: 'INT', type: 'yt-channel', channelId: 'UCoMdktPbSTixAyNGwb-UYkQ', desc: 'UK/Global news 24/7' },
-      { id: 'dw', label: 'DW NEWS', region: 'INT', type: 'yt-channel', channelId: 'UCknLrEdhRCp1aegoMqRhGGQ', desc: 'German intl. news 24/7' },
-      // LOCATION CAMERAS
-      { id: 'telaviv', label: 'TEL AVIV', region: 'IL', type: 'external', url: 'https://www.skylinewebcams.com/en/webcam/israel/tel-aviv/tel-aviv/tel-aviv.html', desc: 'Skyline & Mediterranean coast' },
-      { id: 'jerusalem', label: 'JERUSALEM', region: 'IL', type: 'external', url: 'https://www.skylinewebcams.com/en/webcam/israel/jerusalem-district/jerusalem/western-wall.html', desc: 'Western Wall / Kotel' },
-      { id: 'haifa', label: 'HAIFA', region: 'IL', type: 'external', url: 'https://www.skylinewebcams.com/en/webcam/israel/haifa/haifa/haifa-carmel-beach.html', desc: 'Carmel Beach coast' },
-      { id: 'dc', label: 'WHITE HOUSE', region: 'DC', type: 'external', url: 'https://www.earthtv.com/en/webcam/washington-white-house', desc: 'earthTV - Washington DC' },
-      { id: 'kotel', label: 'KOTEL CAM', region: 'IL', type: 'external', url: 'https://thekotel.org/en/western-wall/western-wall-cameras/', desc: 'Western Wall Heritage Foundation' },
+      // ISRAEL — City cameras
+      { id: 'i24', label: 'i24 NEWS', region: 'IL', channelId: 'UCvHDpsWKADrDia0c99X37vg', loc: '32.06\u00b0N 34.76\u00b0E // JAFFA PORT', desc: 'Israeli news — Tel Aviv' },
+      { id: 'telaviv', label: 'TEL AVIV', region: 'IL', channelId: 'UC1tBnbs03VJ34oLD8cmJSVw', loc: '32.08\u00b0N 34.77\u00b0E // GORDON BEACH', desc: 'Mediterranean coast cam' },
+      { id: 'jerusalem', label: 'JERUSALEM', region: 'IL', channelId: 'UC6qrG3W8SMK0jior2olka3g', loc: '31.77\u00b0N 35.23\u00b0E // OLD CITY', desc: 'Western Wall / Kotel' },
+      // NEWS — 24/7 broadcasts
+      { id: 'aljazeera', label: 'AL JAZEERA', region: 'ME', channelId: 'UCNye-wNBqNL5ZzHSJj3l8Bg', loc: '25.29\u00b0N 51.53\u00b0E // DOHA', desc: 'Middle East 24/7' },
+      { id: 'france24', label: 'FRANCE 24', region: 'INT', channelId: 'UCQfwfsi5VrQ8yKZ-UWmAEFg', loc: '48.85\u00b0N 2.35\u00b0E // PARIS', desc: 'International 24/7' },
+      { id: 'sky', label: 'SKY NEWS', region: 'INT', channelId: 'UCoMdktPbSTixAyNGwb-UYkQ', loc: '51.50\u00b0N 0.14\u00b0W // LONDON', desc: 'UK/Global 24/7' },
+      { id: 'dw', label: 'DW NEWS', region: 'INT', channelId: 'UCknLrEdhRCp1aegoMqRhGGQ', loc: '52.52\u00b0N 13.40\u00b0E // BERLIN', desc: 'Deutsche Welle 24/7' },
+      // DC
+      { id: 'dc', label: 'WASH DC', region: 'DC', channelId: null, handle: 'earthTV', loc: '38.89\u00b0N 77.03\u00b0W // WHITE HOUSE', desc: 'Pennsylvania Ave cam' },
     ];
 
-    let activeCams = [0, 1]; // Indices of currently displayed cameras
-    let resolvedVideoIds = {}; // Cache of channelId -> videoId
+    let activeCams = [0, 1];
+    let resolvedVideoIds = {};
     let camLayoutExpanded = false;
+    let camClockTimer = null;
+
+    // YouTube embed params that hide all branding/controls
+    const YT_PARAMS = 'autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&iv_load_policy=3&showinfo=0&fs=0&disablekb=1&playsinline=1';
 
     function buildCamTabs() {
       const container = document.getElementById('camsTabs');
@@ -2263,19 +2298,31 @@ export function getHTML() {
     }
 
     function selectCam(idx) {
-      // Replace the left cam slot, or right if left already has this
       if (activeCams[0] === idx) return;
       if (activeCams[1] === idx) return;
-
-      // On mobile, replace the single cam; on desktop replace the oldest slot
       if (window.innerWidth <= 768) {
         activeCams = [idx];
       } else {
         activeCams = [idx, activeCams[0]];
       }
-
       buildCamTabs();
       renderCams();
+    }
+
+    function getCamEmbedUrl(cam) {
+      // 1. Use resolved video ID if available
+      if (cam.channelId && resolvedVideoIds[cam.channelId]) {
+        return \`https://www.youtube.com/embed/\${resolvedVideoIds[cam.channelId]}?\${YT_PARAMS}\`;
+      }
+      // 2. Use resolved handle-based video ID
+      if (cam.handle && resolvedVideoIds[cam.handle]) {
+        return \`https://www.youtube.com/embed/\${resolvedVideoIds[cam.handle]}?\${YT_PARAMS}\`;
+      }
+      // 3. Fallback: channel-based live embed
+      if (cam.channelId) {
+        return \`https://www.youtube.com/embed/live_stream?channel=\${cam.channelId}&\${YT_PARAMS}\`;
+      }
+      return null;
     }
 
     function renderCams() {
@@ -2286,57 +2333,53 @@ export function getHTML() {
         const cam = LIVE_CAMERAS[idx];
         if (!cam) return '';
 
-        if (cam.type === 'yt-channel') {
-          // Use resolved video ID if available, otherwise try channel embed
-          const videoId = resolvedVideoIds[cam.channelId];
-          const embedUrl = videoId
-            ? \`https://www.youtube.com/embed/\${videoId}?autoplay=1&mute=1&rel=0&modestbranding=1\`
-            : \`https://www.youtube.com/embed/live_stream?channel=\${cam.channelId}&autoplay=1&mute=1\`;
+        const embedUrl = getCamEmbedUrl(cam);
 
+        if (embedUrl) {
           return \`<div class="cam-embed">
             <div class="cam-embed-header">
-              <span class="cam-embed-label"><span class="cam-live-dot"></span>\${cam.label}</span>
+              <span class="cam-embed-label"><span class="cam-live-dot"></span>CAM-\${String(idx + 1).padStart(2, '0')} // \${cam.label}</span>
               <span class="cam-embed-region">\${cam.region}</span>
             </div>
             <iframe src="\${embedUrl}" allow="autoplay; encrypted-media" allowfullscreen loading="lazy"></iframe>
-          </div>\`;
-        }
-
-        if (cam.type === 'direct-embed') {
-          return \`<div class="cam-embed">
-            <div class="cam-embed-header">
-              <span class="cam-embed-label"><span class="cam-live-dot"></span>\${cam.label}</span>
-              <span class="cam-embed-region">\${cam.region}</span>
+            <div class="cam-embed-footer">
+              <span class="cam-embed-loc">\${cam.loc}</span>
+              <span class="cam-embed-time cam-clock" data-tz="\${cam.id}">--:--:--</span>
             </div>
-            <iframe src="\${cam.embedUrl}&autoplay=1&mute=1" allow="autoplay; encrypted-media" allowfullscreen loading="lazy"></iframe>
           </div>\`;
         }
 
-        if (cam.type === 'yt-video') {
-          return \`<div class="cam-embed">
-            <div class="cam-embed-header">
-              <span class="cam-embed-label"><span class="cam-live-dot"></span>\${cam.label}</span>
-              <span class="cam-embed-region">\${cam.region}</span>
-            </div>
-            <iframe src="https://www.youtube.com/embed/\${cam.videoId}?autoplay=1&mute=1&rel=0" allow="autoplay; encrypted-media" allowfullscreen loading="lazy"></iframe>
-          </div>\`;
-        }
-
-        // External camera — show link card
+        // No embed URL — show "acquiring signal" placeholder
         return \`<div class="cam-embed">
           <div class="cam-embed-header">
-            <span class="cam-embed-label">\${cam.label}</span>
+            <span class="cam-embed-label">CAM-\${String(idx + 1).padStart(2, '0')} // \${cam.label}</span>
             <span class="cam-embed-region">\${cam.region}</span>
           </div>
           <div class="cam-placeholder">
             <div class="cam-placeholder-icon">&#9673;</div>
             <div class="cam-placeholder-text">\${cam.desc}</div>
-            <a href="\${cam.url}" target="_blank" rel="noopener noreferrer" class="cam-external-link">
-              OPEN LIVE FEED &rarr;
-            </a>
+            <div class="cam-placeholder-sub">ACQUIRING SIGNAL...</div>
+          </div>
+          <div class="cam-embed-footer">
+            <span class="cam-embed-loc">\${cam.loc}</span>
+            <span class="cam-embed-time">STANDBY</span>
           </div>
         </div>\`;
       }).join('');
+
+      startCamClocks();
+    }
+
+    function startCamClocks() {
+      if (camClockTimer) clearInterval(camClockTimer);
+      function updateClocks() {
+        document.querySelectorAll('.cam-clock').forEach(el => {
+          const now = new Date();
+          el.textContent = now.toLocaleTimeString('en-US', { hour12: false }) + ' UTC' + (now.getTimezoneOffset() > 0 ? '-' : '+') + Math.abs(now.getTimezoneOffset() / 60);
+        });
+      }
+      updateClocks();
+      camClockTimer = setInterval(updateClocks, 1000);
     }
 
     async function loadLiveCams() {
@@ -2345,8 +2388,11 @@ export function getHTML() {
         const data = await res.json();
         if (data.success && data.cams) {
           data.cams.forEach(cam => {
-            if (cam.videoId) {
+            if (cam.videoId && cam.channelId) {
               resolvedVideoIds[cam.channelId] = cam.videoId;
+            }
+            if (cam.videoId && cam.handle) {
+              resolvedVideoIds[cam.handle] = cam.videoId;
             }
           });
           renderCams();
@@ -2371,7 +2417,6 @@ export function getHTML() {
     buildCamTabs();
     renderCams();
     loadLiveCams();
-    // Refresh resolved video IDs every 5 minutes
     setInterval(loadLiveCams, 5 * 60 * 1000);
 
     // ========================================================================

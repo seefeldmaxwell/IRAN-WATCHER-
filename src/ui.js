@@ -453,6 +453,204 @@ export function getHTML() {
       opacity: 0.6;
     }
 
+    /* ======== LIVE CAMS PANEL ======== */
+    .cams-panel {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .cams-tabs {
+      display: flex;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-dim);
+      overflow-x: auto;
+      gap: 0;
+    }
+
+    .cams-tabs::-webkit-scrollbar { height: 0; }
+
+    .cam-tab {
+      padding: 8px 16px;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .cam-tab:hover { color: var(--text-secondary); background: rgba(255,255,255,0.02); }
+
+    .cam-tab.active {
+      color: var(--accent-red);
+      border-bottom-color: var(--accent-red);
+      background: rgba(229, 62, 62, 0.03);
+    }
+
+    .cam-tab .cam-region {
+      font-size: 7px;
+      opacity: 0.5;
+      margin-left: 4px;
+    }
+
+    .cams-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      flex: 1;
+      min-height: 340px;
+    }
+
+    .cam-embed {
+      position: relative;
+      background: #000;
+      border-right: 1px solid var(--border-dim);
+      min-height: 280px;
+    }
+
+    .cam-embed:last-child { border-right: none; }
+
+    .cam-embed iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+
+    .cam-embed-header {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 10px;
+      background: linear-gradient(180deg, rgba(4,6,11,0.85) 0%, transparent 100%);
+    }
+
+    .cam-embed-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-primary);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .cam-embed-region {
+      font-size: 8px;
+      color: var(--accent-red);
+      letter-spacing: 1px;
+      font-weight: 600;
+    }
+
+    .cam-live-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--accent-red);
+      border-radius: 50%;
+      animation: blink 2s infinite;
+      display: inline-block;
+      margin-right: 6px;
+    }
+
+    .cam-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      min-height: 280px;
+      text-align: center;
+      padding: 20px;
+      background: var(--bg-primary);
+    }
+
+    .cam-placeholder-icon {
+      font-size: 32px;
+      margin-bottom: 10px;
+      opacity: 0.15;
+    }
+
+    .cam-placeholder-text {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .cam-external-link {
+      display: inline-block;
+      padding: 8px 18px;
+      background: var(--accent-red-dim);
+      border: 1px solid rgba(229, 62, 62, 0.3);
+      color: var(--accent-red);
+      text-decoration: none;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      transition: all 0.15s;
+    }
+
+    .cam-external-link:hover {
+      background: rgba(229, 62, 62, 0.2);
+      border-color: rgba(229, 62, 62, 0.5);
+    }
+
+    .cam-status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 12px;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border-dim);
+      font-size: 8px;
+      color: var(--text-muted);
+      letter-spacing: 1px;
+    }
+
+    .cam-fullscreen-btn {
+      padding: 4px 10px;
+      background: none;
+      border: 1px solid var(--border-dim);
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 8px;
+      cursor: pointer;
+      letter-spacing: 1px;
+      transition: all 0.15s;
+    }
+
+    .cam-fullscreen-btn:hover {
+      color: var(--text-primary);
+      border-color: var(--border-mid);
+    }
+
+    @media (max-width: 768px) {
+      .cams-content {
+        grid-template-columns: 1fr;
+        min-height: 240px;
+      }
+      .cam-embed {
+        border-right: none;
+        border-bottom: 1px solid var(--border-dim);
+        min-height: 220px;
+      }
+    }
+
     /* ======== FEED TABS ======== */
     .feed-tabs {
       display: flex;
@@ -1544,6 +1742,25 @@ export function getHTML() {
       <button class="topic-btn" data-topic="energy" onclick="filterTopic('energy')">ENERGY</button>
     </div>
 
+    <!-- LIVE CAMERAS -->
+    <div class="panel cams-panel" id="camsPanel">
+      <div class="panel-header">
+        <div class="panel-title"><span class="cam-live-dot"></span> LIVE CAMERAS</div>
+        <span class="panel-badge" style="background:var(--accent-red-dim);color:var(--accent-red);border-color:rgba(229,62,62,0.25)">LIVE FEED</span>
+      </div>
+      <div class="cams-tabs" id="camsTabs"></div>
+      <div class="cams-content" id="camsContent">
+        <div class="cam-placeholder">
+          <div class="cam-placeholder-icon">&#9673;</div>
+          <div class="cam-placeholder-text">Loading camera feeds...</div>
+        </div>
+      </div>
+      <div class="cam-status-bar">
+        <span>AUTO-REFRESH 5 MIN // YOUTUBE + EXTERNAL SOURCES</span>
+        <button class="cam-fullscreen-btn" onclick="toggleCamLayout()">&#9633; EXPAND</button>
+      </div>
+    </div>
+
     <!-- LEFT: NEWS FEED -->
     <div class="panel feed-area">
       <div class="feed-tabs">
@@ -1607,6 +1824,10 @@ export function getHTML() {
         <button class="mobile-nav-btn active" onclick="mobileSwitch('feed')" data-panel="feed">
           <span class="nav-icon">&#9776;</span>
           FEED
+        </button>
+        <button class="mobile-nav-btn" onclick="mobileSwitch('cams')" data-panel="cams">
+          <span class="nav-icon">&#9673;</span>
+          CAMS
         </button>
         <button class="mobile-nav-btn" onclick="mobileSwitch('xfeed')" data-panel="xfeed">
           <span class="nav-icon">&#120143;</span>
@@ -2011,6 +2232,149 @@ export function getHTML() {
     setInterval(loadNews, 2 * 60 * 1000);
 
     // ========================================================================
+    // LIVE CAMERAS
+    // ========================================================================
+    const LIVE_CAMERAS = [
+      // NEWS CHANNELS (YouTube channel-based live embed)
+      { id: 'aljazeera', label: 'AL JAZEERA', region: 'ME', type: 'yt-channel', channelId: 'UCNye-wNBqNL5ZzHSJj3l8Bg', desc: 'Middle East 24/7 news' },
+      { id: 'france24', label: 'FRANCE 24', region: 'INT', type: 'direct-embed', embedUrl: 'https://www.youtube.com/embed/live_stream?channel=UCQfwfsi5VrQ8yKZ-UWmAEFg', fallbackUrl: 'https://www.france24.com/en/live', desc: 'International news 24/7' },
+      { id: 'sky', label: 'SKY NEWS', region: 'INT', type: 'yt-channel', channelId: 'UCoMdktPbSTixAyNGwb-UYkQ', desc: 'UK/Global news 24/7' },
+      { id: 'dw', label: 'DW NEWS', region: 'INT', type: 'yt-channel', channelId: 'UCknLrEdhRCp1aegoMqRhGGQ', desc: 'German intl. news 24/7' },
+      // LOCATION CAMERAS
+      { id: 'telaviv', label: 'TEL AVIV', region: 'IL', type: 'external', url: 'https://www.skylinewebcams.com/en/webcam/israel/tel-aviv/tel-aviv/tel-aviv.html', desc: 'Skyline & Mediterranean coast' },
+      { id: 'jerusalem', label: 'JERUSALEM', region: 'IL', type: 'external', url: 'https://www.skylinewebcams.com/en/webcam/israel/jerusalem-district/jerusalem/western-wall.html', desc: 'Western Wall / Kotel' },
+      { id: 'haifa', label: 'HAIFA', region: 'IL', type: 'external', url: 'https://www.skylinewebcams.com/en/webcam/israel/haifa/haifa/haifa-carmel-beach.html', desc: 'Carmel Beach coast' },
+      { id: 'dc', label: 'WHITE HOUSE', region: 'DC', type: 'external', url: 'https://www.earthtv.com/en/webcam/washington-white-house', desc: 'earthTV - Washington DC' },
+      { id: 'kotel', label: 'KOTEL CAM', region: 'IL', type: 'external', url: 'https://thekotel.org/en/western-wall/western-wall-cameras/', desc: 'Western Wall Heritage Foundation' },
+    ];
+
+    let activeCams = [0, 1]; // Indices of currently displayed cameras
+    let resolvedVideoIds = {}; // Cache of channelId -> videoId
+    let camLayoutExpanded = false;
+
+    function buildCamTabs() {
+      const container = document.getElementById('camsTabs');
+      container.innerHTML = LIVE_CAMERAS.map((cam, i) =>
+        \`<button class="cam-tab \${activeCams.includes(i) ? 'active' : ''}" onclick="selectCam(\${i})" data-cam="\${i}">
+          \${cam.label}
+          <span class="cam-region">\${cam.region}</span>
+        </button>\`
+      ).join('');
+    }
+
+    function selectCam(idx) {
+      // Replace the left cam slot, or right if left already has this
+      if (activeCams[0] === idx) return;
+      if (activeCams[1] === idx) return;
+
+      // On mobile, replace the single cam; on desktop replace the oldest slot
+      if (window.innerWidth <= 768) {
+        activeCams = [idx];
+      } else {
+        activeCams = [idx, activeCams[0]];
+      }
+
+      buildCamTabs();
+      renderCams();
+    }
+
+    function renderCams() {
+      const container = document.getElementById('camsContent');
+      const camsToShow = window.innerWidth <= 768 ? [activeCams[0]] : activeCams;
+
+      container.innerHTML = camsToShow.map(idx => {
+        const cam = LIVE_CAMERAS[idx];
+        if (!cam) return '';
+
+        if (cam.type === 'yt-channel') {
+          // Use resolved video ID if available, otherwise try channel embed
+          const videoId = resolvedVideoIds[cam.channelId];
+          const embedUrl = videoId
+            ? \`https://www.youtube.com/embed/\${videoId}?autoplay=1&mute=1&rel=0&modestbranding=1\`
+            : \`https://www.youtube.com/embed/live_stream?channel=\${cam.channelId}&autoplay=1&mute=1\`;
+
+          return \`<div class="cam-embed">
+            <div class="cam-embed-header">
+              <span class="cam-embed-label"><span class="cam-live-dot"></span>\${cam.label}</span>
+              <span class="cam-embed-region">\${cam.region}</span>
+            </div>
+            <iframe src="\${embedUrl}" allow="autoplay; encrypted-media" allowfullscreen loading="lazy"></iframe>
+          </div>\`;
+        }
+
+        if (cam.type === 'direct-embed') {
+          return \`<div class="cam-embed">
+            <div class="cam-embed-header">
+              <span class="cam-embed-label"><span class="cam-live-dot"></span>\${cam.label}</span>
+              <span class="cam-embed-region">\${cam.region}</span>
+            </div>
+            <iframe src="\${cam.embedUrl}&autoplay=1&mute=1" allow="autoplay; encrypted-media" allowfullscreen loading="lazy"></iframe>
+          </div>\`;
+        }
+
+        if (cam.type === 'yt-video') {
+          return \`<div class="cam-embed">
+            <div class="cam-embed-header">
+              <span class="cam-embed-label"><span class="cam-live-dot"></span>\${cam.label}</span>
+              <span class="cam-embed-region">\${cam.region}</span>
+            </div>
+            <iframe src="https://www.youtube.com/embed/\${cam.videoId}?autoplay=1&mute=1&rel=0" allow="autoplay; encrypted-media" allowfullscreen loading="lazy"></iframe>
+          </div>\`;
+        }
+
+        // External camera — show link card
+        return \`<div class="cam-embed">
+          <div class="cam-embed-header">
+            <span class="cam-embed-label">\${cam.label}</span>
+            <span class="cam-embed-region">\${cam.region}</span>
+          </div>
+          <div class="cam-placeholder">
+            <div class="cam-placeholder-icon">&#9673;</div>
+            <div class="cam-placeholder-text">\${cam.desc}</div>
+            <a href="\${cam.url}" target="_blank" rel="noopener noreferrer" class="cam-external-link">
+              OPEN LIVE FEED &rarr;
+            </a>
+          </div>
+        </div>\`;
+      }).join('');
+    }
+
+    async function loadLiveCams() {
+      try {
+        const res = await fetch('/api/live-cams');
+        const data = await res.json();
+        if (data.success && data.cams) {
+          data.cams.forEach(cam => {
+            if (cam.videoId) {
+              resolvedVideoIds[cam.channelId] = cam.videoId;
+            }
+          });
+          renderCams();
+        }
+      } catch { /* silent — channel embed fallback still works */ }
+    }
+
+    function toggleCamLayout() {
+      camLayoutExpanded = !camLayoutExpanded;
+      const content = document.getElementById('camsContent');
+      const btn = document.querySelector('.cam-fullscreen-btn');
+      if (camLayoutExpanded) {
+        content.style.minHeight = '500px';
+        btn.innerHTML = '&#9632; COLLAPSE';
+      } else {
+        content.style.minHeight = '';
+        btn.innerHTML = '&#9633; EXPAND';
+      }
+    }
+
+    // Init cams
+    buildCamTabs();
+    renderCams();
+    loadLiveCams();
+    // Refresh resolved video IDs every 5 minutes
+    setInterval(loadLiveCams, 5 * 60 * 1000);
+
+    // ========================================================================
     // AI CHAT
     // ========================================================================
     function toggleChat() {
@@ -2188,7 +2552,7 @@ export function getHTML() {
     // MOBILE PANEL SWITCHING + GESTURES
     // ========================================================================
     let currentMobilePanel = 'feed';
-    const MOBILE_PANELS = ['feed', 'xfeed', 'chat', 'brief'];
+    const MOBILE_PANELS = ['feed', 'cams', 'xfeed', 'chat', 'brief'];
 
     function mobileSwitch(panel) {
       if (window.innerWidth > 768) return;
@@ -2203,6 +2567,7 @@ export function getHTML() {
       const feedArea = document.querySelector('.feed-area');
       const sidebar = document.querySelector('.sidebar');
       const briefing = document.querySelector('.briefing-panel');
+      const camsPanel = document.getElementById('camsPanel');
       const xPanel = document.querySelector('.x-feed-panel');
       const chatPanel = document.getElementById('chatPanel');
       const topicBar = document.getElementById('topicBar');
@@ -2210,7 +2575,7 @@ export function getHTML() {
       const ticker = document.getElementById('tickerBanner');
 
       // Hide everything first
-      [feedArea, sidebar, briefing, topicBar, tldr, ticker].forEach(el => {
+      [feedArea, sidebar, briefing, camsPanel, topicBar, tldr, ticker].forEach(el => {
         if (el) el.classList.add('mobile-hidden');
       });
       if (chatPanel) chatPanel.classList.remove('mobile-fullscreen');
@@ -2230,6 +2595,17 @@ export function getHTML() {
           if (topicBar) topicBar.classList.remove('mobile-hidden');
           if (ticker) ticker.classList.remove('mobile-hidden');
           if (sidebar) sidebar.classList.add('mobile-hidden');
+          break;
+
+        case 'cams':
+          // Show cams panel full-screen
+          if (camsPanel) {
+            camsPanel.classList.remove('mobile-hidden');
+            camsPanel.style.minHeight = 'calc(100vh - 160px)';
+            // Re-render with single cam for mobile
+            activeCams = [activeCams[0]];
+            renderCams();
+          }
           break;
 
         case 'xfeed':
@@ -2264,6 +2640,11 @@ export function getHTML() {
       if (panel !== 'chat' && chatPanel) {
         chatPanel.style.minHeight = '';
         chatPanel.style.maxHeight = '';
+      }
+
+      // Reset cams panel size when not cams
+      if (panel !== 'cams' && camsPanel) {
+        camsPanel.style.minHeight = '';
       }
 
       // Scroll to top of visible content

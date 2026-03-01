@@ -14,6 +14,8 @@ const NITTER_INSTANCES = [
   'https://nitter.privacydev.net',
   'https://nitter.poast.org',
   'https://nitter.woodland.cafe',
+  'https://nitter.1d4.us',
+  'https://nitter.lucabased.xyz',
 ];
 
 export default {
@@ -43,6 +45,11 @@ export default {
     if (url.pathname.startsWith('/api/x-search/')) {
       const query = decodeURIComponent(url.pathname.replace('/api/x-search/', ''));
       return handleXSearchProxy(query, env);
+    }
+
+    // Live cams — resolve YouTube channel to current live video ID
+    if (url.pathname === '/api/live-cams') {
+      return handleLiveCams(env);
     }
 
     // Serve the main page
@@ -244,8 +251,9 @@ async function handleXTimelineProxy(handle, env) {
 
       let html = await response.text();
 
-      // Validate we got actual timeline content (not an error page)
+      // Validate we got actual timeline content (not an error/whitelist page)
       if (!html.includes('timeline') && !html.includes('tweet')) continue;
+      if (html.includes('not yet whitelisted') || html.includes('RSS reader not yet')) continue;
 
       // Inject dark theme styles and fix links to open in parent
       html = html.replace('</head>', `${X_PROXY_STYLES}<base target="_blank"></head>`);
@@ -322,6 +330,7 @@ async function handleXSearchProxy(query, env) {
       let html = await response.text();
 
       if (!html.includes('timeline') && !html.includes('tweet')) continue;
+      if (html.includes('not yet whitelisted') || html.includes('RSS reader not yet')) continue;
 
       html = html.replace('</head>', `${X_PROXY_STYLES}<base target="_blank"></head>`);
 
@@ -357,4 +366,68 @@ async function handleXSearchProxy(query, env) {
   return new Response(fallback, {
     headers: { 'Content-Type': 'text/html;charset=UTF-8' },
   });
+}
+
+// ========================================================================
+// LIVE CAMS — Resolve YouTube channels to current live video IDs
+// ========================================================================
+
+const YT_CHANNELS = [
+  { id: 'aljazeera', channelId: 'UCNye-wNBqNL5ZzHSJj3l8Bg', label: 'Al Jazeera English' },
+  { id: 'france24', channelId: 'UCQfwfsi5VrQ8yKZ-UWmAEFg', label: 'France 24 English' },
+  { id: 'sky', channelId: 'UCoMdktPbSTixAyNGwb-UYkQ', label: 'Sky News' },
+  { id: 'dw', channelId: 'UCknLrEdhRCp1aegoMqRhGGQ', label: 'DW News' },
+];
+
+async function resolveYTLiveVideoId(channelId) {
+  try {
+    const response = await fetch(`https://www.youtube.com/channel/${channelId}/live`, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept-Language': 'en-US,en;q=0.9',
+      },
+      redirect: 'follow',
+      cf: { cacheTtl: 300 },
+    });
+
+    if (!response.ok) return null;
+
+    const html = await response.text();
+    // Extract video ID from the page
+    const match = html.match(/"videoId":"([a-zA-Z0-9_-]{11})"/);
+    if (match) return match[1];
+
+    // Try alternate pattern
+    const match2 = html.match(/watch\?v=([a-zA-Z0-9_-]{11})/);
+    if (match2) return match2[1];
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+async function handleLiveCams(env) {
+  // Check cache first (5-minute TTL)
+  const cached = await env.NEWS_CACHE.get('live_cams', 'json');
+  if (cached) {
+    return Response.json({ success: true, cams: cached });
+  }
+
+  // Resolve all channels in parallel
+  const results = await Promise.allSettled(
+    YT_CHANNELS.map(async (ch) => {
+      const videoId = await resolveYTLiveVideoId(ch.channelId);
+      return { ...ch, videoId };
+    })
+  );
+
+  const cams = results
+    .filter(r => r.status === 'fulfilled')
+    .map(r => r.value);
+
+  // Cache for 5 minutes
+  await env.NEWS_CACHE.put('live_cams', JSON.stringify(cams), { expirationTtl: 300 });
+
+  return Response.json({ success: true, cams });
 }

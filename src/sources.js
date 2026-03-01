@@ -186,6 +186,8 @@ const NITTER_INSTANCES = [
   'https://nitter.poast.org',
   'https://xcancel.com',
   'https://nitter.woodland.cafe',
+  'https://nitter.1d4.us',
+  'https://nitter.lucabased.xyz',
 ];
 
 // ---- Fetch X/Twitter Mentions (via multiple fallback methods) ----
@@ -217,6 +219,10 @@ async function fetchXAccountTimelines() {
           if (!response.ok) continue;
 
           const text = await response.text();
+
+          // Skip instances that require RSS whitelist
+          if (text.includes('not yet whitelisted') || text.includes('RSS reader not yet')) continue;
+
           const items = parseRSSXML(text);
 
           if (items.length === 0) continue;
@@ -291,6 +297,10 @@ async function fetchXSearchPosts() {
           if (!response.ok) continue;
 
           const text = await response.text();
+
+          // Skip instances that require RSS whitelist
+          if (text.includes('not yet whitelisted') || text.includes('RSS reader not yet')) continue;
+
           const items = parseRSSXML(text);
 
           if (items.length === 0) continue;

@@ -669,6 +669,54 @@ export function getHTML() {
       border-color: var(--border-mid);
     }
 
+    .cam-audio-btn {
+      position: absolute;
+      bottom: 34px;
+      right: 12px;
+      z-index: 6;
+      padding: 6px 14px;
+      background: rgba(0,0,0,0.75);
+      border: 1px solid rgba(229, 62, 62, 0.4);
+      color: var(--accent-red);
+      font-family: var(--font-mono);
+      font-size: 9px;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      transition: all 0.2s;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+
+    .cam-audio-btn:hover {
+      background: rgba(229, 62, 62, 0.25);
+      border-color: var(--accent-red);
+      color: white;
+    }
+
+    .cam-audio-btn.unmuted {
+      background: rgba(56, 161, 105, 0.2);
+      border-color: rgba(56, 161, 105, 0.5);
+      color: var(--accent-green);
+    }
+
+    .cam-audio-btn.unmuted:hover {
+      background: rgba(56, 161, 105, 0.35);
+      border-color: var(--accent-green);
+      color: white;
+    }
+
+    @media (max-width: 768px) {
+      .cam-audio-btn {
+        bottom: 30px;
+        right: 8px;
+        padding: 8px 14px;
+        font-size: 10px;
+        min-height: 36px;
+      }
+    }
+
     @media (max-width: 768px) {
       .cams-content {
         grid-template-columns: 1fr;
@@ -1096,6 +1144,29 @@ export function getHTML() {
     /* Iframe overrides */
     .x-live-iframe {
       color-scheme: dark;
+    }
+
+    /* Twitter embed container */
+    .x-twitter-embed {
+      flex: 1;
+      overflow-y: auto;
+      background: var(--bg-primary);
+      min-height: 400px;
+    }
+
+    .x-twitter-embed .twitter-timeline {
+      color: var(--text-muted) !important;
+      font-family: var(--font-mono) !important;
+      font-size: 11px !important;
+      display: block;
+      padding: 20px;
+      text-align: center;
+    }
+
+    /* Force Twitter iframe to fill container */
+    .x-twitter-embed iframe {
+      width: 100% !important;
+      border: none !important;
     }
 
     /* ======== AI CHAT PANEL ======== */
@@ -1681,6 +1752,20 @@ export function getHTML() {
     ::-webkit-scrollbar-thumb { background: var(--border-dim); }
     ::-webkit-scrollbar-thumb:hover { background: var(--border-mid); }
   </style>
+  <script>
+    // Twitter widgets.js — official embed SDK for client-side timeline rendering
+    window.twttr = (function(d, s, id) {
+      var js, fjs = d.getElementsByTagName(s)[0], t = window.twttr || {};
+      if (d.getElementById(id)) return t;
+      js = d.createElement(s); js.id = id;
+      js.src = "https://platform.twitter.com/widgets.js";
+      js.async = true;
+      fjs.parentNode.insertBefore(js, fjs);
+      t._e = [];
+      t.ready = function(f) { t._e.push(f); };
+      return t;
+    }(document, "script", "twitter-wjs"));
+  </script>
 </head>
 <body>
   <div class="bg-grid"></div>
@@ -2100,10 +2185,13 @@ export function getHTML() {
     }
 
     // ========================================================================
-    // X / TWITTER FEED — JSON API + card-based rendering (no iframes)
+    // X / TWITTER FEED — Twitter official embed widget (client-side)
+    // Server-side APIs failed (RSSHub, Nitter, Syndication all blocked).
+    // Using Twitter's widgets.js loads timeline directly in user's browser.
     // ========================================================================
     let currentXTab = 0;
     let xAutoRefreshTimer = null;
+    let xEmbedFallbackTimer = null;
 
     function buildXSearchTabs() {
       const container = document.getElementById('xSearchTabs');
@@ -2124,42 +2212,111 @@ export function getHTML() {
       const item = X_ACCOUNTS[idx];
 
       if (xAutoRefreshTimer) clearInterval(xAutoRefreshTimer);
-
-      const statusLabel = item.type === 'account'
-        ? \`LIVE TIMELINE — @\${item.handle.toUpperCase()}\`
-        : \`LIVE SEARCH — "\${escapeHtml(item.query).toUpperCase()}"\`;
+      if (xEmbedFallbackTimer) clearTimeout(xEmbedFallbackTimer);
 
       const openUrl = item.type === 'account'
         ? \`https://x.com/\${item.handle}\`
         : \`https://x.com/search?q=\${encodeURIComponent(item.query)}&f=live\`;
 
-      container.innerHTML = \`
-        <div class="x-embed-status" id="xEmbedStatus">
-          <span class="status-dot" style="width:5px;height:5px;background:#1d9bf0;border-radius:50%;animation:blink 2s infinite;"></span>
-          <span>\${statusLabel}</span>
-          <span style="margin-left:auto;font-size:8px;opacity:0.6;" id="xRefreshTime">LOADING...</span>
-        </div>
-        <div class="x-feed-items" id="xFeedItems" style="flex:1;overflow-y:auto;">
-          <div class="briefing-loading"><div class="spinner"></div>Fetching X posts...</div>
-        </div>
-        <div class="x-iframe-footer">
-          <button class="x-refresh-btn" onclick="loadXFeedData(\${idx})">&#8635; REFRESH</button>
-          <a href="\${openUrl}" target="_blank" rel="noopener noreferrer" class="x-open-btn">OPEN ON X &rarr;</a>
-        </div>\`;
+      if (item.type === 'account') {
+        // ---- ACCOUNT: Use Twitter's official embed widget (client-side) ----
+        const statusLabel = \`LIVE TIMELINE — @\${item.handle.toUpperCase()}\`;
 
-      loadXFeedData(idx);
-      xAutoRefreshTimer = setInterval(() => loadXFeedData(idx), 2 * 60 * 1000);
+        container.innerHTML = \`
+          <div class="x-embed-status" id="xEmbedStatus">
+            <span class="status-dot" style="width:5px;height:5px;background:#1d9bf0;border-radius:50%;animation:blink 2s infinite;"></span>
+            <span>\${statusLabel}</span>
+            <span style="margin-left:auto;font-size:8px;opacity:0.6;" id="xRefreshTime">EMBEDDING...</span>
+          </div>
+          <div class="x-twitter-embed" id="xTwitterEmbed">
+            <a class="twitter-timeline"
+               data-dnt="true"
+               data-theme="dark"
+               data-chrome="noheader nofooter noborders transparent"
+               data-tweet-limit="25"
+               href="https://twitter.com/\${item.handle}?ref_src=twsrc%5Etfw">
+              Loading @\${item.handle}...
+            </a>
+          </div>
+          <div class="x-iframe-footer">
+            <button class="x-refresh-btn" onclick="renderXEmbed(\${idx})">&#8635; REFRESH</button>
+            <a href="\${openUrl}" target="_blank" rel="noopener noreferrer" class="x-open-btn">OPEN ON X &rarr;</a>
+          </div>\`;
+
+        // Process the new embed with widgets.js
+        processTwitterEmbed();
+
+        // Fallback: if embed hasn't rendered in 12s, try server-side API
+        xEmbedFallbackTimer = setTimeout(() => {
+          const embed = document.getElementById('xTwitterEmbed');
+          if (embed && !embed.querySelector('iframe')) {
+            loadXFeedDataFallback(idx);
+          }
+        }, 12000);
+
+      } else {
+        // ---- SEARCH: Use server-side API + RSS data cards ----
+        const statusLabel = \`LIVE SEARCH — "\${escapeHtml(item.query).toUpperCase()}"\`;
+
+        container.innerHTML = \`
+          <div class="x-embed-status" id="xEmbedStatus">
+            <span class="status-dot" style="width:5px;height:5px;background:#1d9bf0;border-radius:50%;animation:blink 2s infinite;"></span>
+            <span>\${statusLabel}</span>
+            <span style="margin-left:auto;font-size:8px;opacity:0.6;" id="xRefreshTime">LOADING...</span>
+          </div>
+          <div class="x-feed-items" id="xFeedItems" style="flex:1;overflow-y:auto;">
+            <div class="briefing-loading"><div class="spinner"></div>Searching X posts...</div>
+          </div>
+          <div class="x-iframe-footer">
+            <button class="x-refresh-btn" onclick="loadXFeedDataFallback(\${idx})">&#8635; REFRESH</button>
+            <a href="\${openUrl}" target="_blank" rel="noopener noreferrer" class="x-open-btn">SEARCH ON X &rarr;</a>
+          </div>\`;
+
+        loadXFeedDataFallback(idx);
+        xAutoRefreshTimer = setInterval(() => loadXFeedDataFallback(idx), 2 * 60 * 1000);
+      }
     }
 
-    async function loadXFeedData(idx) {
+    // Process Twitter embed widgets (retry until widgets.js is loaded)
+    function processTwitterEmbed() {
+      const embed = document.getElementById('xTwitterEmbed');
+      if (!embed) return;
+
+      if (window.twttr && twttr.widgets) {
+        twttr.widgets.load(embed).then(function() {
+          const timeEl = document.getElementById('xRefreshTime');
+          const statusEl = document.getElementById('xEmbedStatus');
+          if (timeEl) timeEl.textContent = 'LIVE ' + new Date().toLocaleTimeString('en-US', { hour12: false });
+          if (statusEl) {
+            const dot = statusEl.querySelector('.status-dot');
+            if (dot) dot.style.background = 'var(--accent-green)';
+          }
+          // Cancel fallback timer since embed succeeded
+          if (xEmbedFallbackTimer) clearTimeout(xEmbedFallbackTimer);
+        });
+      } else {
+        // widgets.js not loaded yet, retry in 1s
+        setTimeout(processTwitterEmbed, 1000);
+      }
+    }
+
+    // Fallback: try server-side API, then RSS data
+    async function loadXFeedDataFallback(idx) {
       const item = X_ACCOUNTS[idx];
-      const itemsContainer = document.getElementById('xFeedItems');
       const timeEl = document.getElementById('xRefreshTime');
-      const statusEl = document.getElementById('xEmbedStatus');
+
+      // For accounts, replace the embed container; for search, use xFeedItems
+      let itemsContainer;
+      if (item.type === 'account') {
+        itemsContainer = document.getElementById('xTwitterEmbed');
+      } else {
+        itemsContainer = document.getElementById('xFeedItems');
+      }
 
       if (!itemsContainer) return;
       if (timeEl) timeEl.textContent = 'FETCHING...';
 
+      // Try server-side API first
       try {
         const url = item.type === 'account'
           ? \`/api/x-timeline/\${encodeURIComponent(item.handle)}\`
@@ -2169,39 +2326,12 @@ export function getHTML() {
         const data = await res.json();
 
         if (data.success && data.tweets && data.tweets.length > 0) {
-          itemsContainer.innerHTML = data.tweets.map(tweet => \`
-            <a href="\${escapeHtml(tweet.url)}" target="_blank" rel="noopener noreferrer" class="x-post">
-              <div class="x-post-header">
-                <span class="x-post-source">@\${escapeHtml(tweet.handle || tweet.author || '')}</span>
-                <span class="x-post-time">\${formatTime(tweet.date)}</span>
-              </div>
-              <div class="x-post-text">\${escapeHtml(tweet.text)}</div>
-              \${tweet.media ? \`<img src="\${escapeHtml(tweet.media)}" style="max-width:100%;border-radius:8px;margin-top:8px;" onerror="this.style.display='none'">\` : ''}
-            </a>
-          \`).join('');
-
-          if (timeEl) timeEl.textContent = 'UPDATED ' + new Date().toLocaleTimeString('en-US', { hour12: false });
-          if (statusEl) {
-            const dot = statusEl.querySelector('.status-dot');
-            if (dot) dot.style.background = 'var(--accent-green)';
-          }
-        } else {
-          // No tweets from API — show RSS fallback data
-          renderXFallbackCards(idx);
+          renderTweetCards(itemsContainer, data.tweets, timeEl, 'API');
+          return;
         }
-      } catch {
-        renderXFallbackCards(idx);
-      }
-    }
+      } catch { /* fall through to RSS data */ }
 
-    function renderXFallbackCards(idx) {
-      const itemsContainer = document.getElementById('xFeedItems');
-      const timeEl = document.getElementById('xRefreshTime');
-      const statusEl = document.getElementById('xEmbedStatus');
-      const item = X_ACCOUNTS[idx];
-
-      if (!itemsContainer) return;
-
+      // Fallback: use RSS data from news feed
       const unofficial = newsData.unofficial || [];
       let posts;
 
@@ -2226,25 +2356,57 @@ export function getHTML() {
             <div class="x-post-text">\${escapeHtml(post.title)}</div>
             \${post.description && post.description !== post.title ? '<div class="x-post-desc">' + escapeHtml(post.description).slice(0, 250) + '</div>' : ''}
           </a>\`).join('');
+        if (timeEl) timeEl.textContent = 'RSS DATA';
       } else {
+        const openUrl = item.type === 'account'
+          ? \`https://x.com/\${item.handle}\`
+          : \`https://x.com/search?q=\${encodeURIComponent(item.query)}&f=live\`;
+
         itemsContainer.innerHTML = \`
           <div class="x-empty-state">
             <div style="font-size:28px;margin-bottom:10px;opacity:0.2;">&#120143;</div>
-            <div>Connecting to X feeds...</div>
-            <div style="font-size:10px;margin-top:8px;color:var(--text-muted);">Posts will appear when sources respond</div>
+            <div style="margin-bottom:8px;">Waiting for X data...</div>
+            <div style="font-size:10px;color:var(--text-muted);margin-bottom:16px;">Server-side sources temporarily unavailable</div>
+            <a href="\${openUrl}" target="_blank" rel="noopener noreferrer" class="x-profile-link">
+              VIEW ON X &rarr;
+            </a>
           </div>\`;
+        if (timeEl) timeEl.textContent = 'STANDBY';
       }
 
-      if (timeEl) timeEl.textContent = posts.length > 0 ? 'RSS FALLBACK' : 'WAITING...';
+      const statusEl = document.getElementById('xEmbedStatus');
       if (statusEl) {
         const dot = statusEl.querySelector('.status-dot');
         if (dot) dot.style.background = posts.length > 0 ? 'var(--accent-amber)' : 'var(--accent-red)';
       }
     }
 
+    function renderTweetCards(container, tweets, timeEl, source) {
+      container.innerHTML = tweets.map(tweet => \`
+        <a href="\${escapeHtml(tweet.url)}" target="_blank" rel="noopener noreferrer" class="x-post">
+          <div class="x-post-header">
+            <span class="x-post-source">@\${escapeHtml(tweet.handle || tweet.author || '')}</span>
+            <span class="x-post-time">\${formatTime(tweet.date)}</span>
+          </div>
+          <div class="x-post-text">\${escapeHtml(tweet.text)}</div>
+          \${tweet.media ? \`<img src="\${escapeHtml(tweet.media)}" style="max-width:100%;border-radius:8px;margin-top:8px;" onerror="this.style.display='none'">\` : ''}
+        </a>
+      \`).join('');
+
+      if (timeEl) timeEl.textContent = source + ' ' + new Date().toLocaleTimeString('en-US', { hour12: false });
+      const statusEl = document.getElementById('xEmbedStatus');
+      if (statusEl) {
+        const dot = statusEl.querySelector('.status-dot');
+        if (dot) dot.style.background = 'var(--accent-green)';
+      }
+    }
+
     function renderXFeed() {
-      // Re-render current tab when news data updates
-      loadXFeedData(currentXTab);
+      // Only re-render if showing fallback cards (not Twitter embed)
+      const embed = document.getElementById('xTwitterEmbed');
+      if (!embed || !embed.querySelector('iframe')) {
+        loadXFeedDataFallback(currentXTab);
+      }
     }
 
     // Refresh news data every 2 minutes for real-time feel
@@ -2272,9 +2434,10 @@ export function getHTML() {
     let resolvedVideoIds = {};
     let camLayoutExpanded = false;
     let camClockTimer = null;
+    let camMuteState = {}; // track mute per cam index (true = muted)
 
-    // YouTube embed params that hide all branding/controls
-    const YT_PARAMS = 'autoplay=1&mute=1&controls=1&modestbranding=1&rel=0&iv_load_policy=3&showinfo=0&fs=1&disablekb=0&playsinline=1';
+    // YouTube embed params — enablejsapi=1 allows postMessage audio control
+    const YT_PARAMS = 'autoplay=1&mute=1&controls=1&modestbranding=1&rel=0&iv_load_policy=3&showinfo=0&fs=1&disablekb=0&playsinline=1&enablejsapi=1';
 
     function buildCamTabs() {
       const container = document.getElementById('camsTabs');
@@ -2325,12 +2488,14 @@ export function getHTML() {
         const embedUrl = getCamEmbedUrl(cam);
 
         if (embedUrl) {
+          camMuteState[idx] = true; // starts muted (required for autoplay)
           return \`<div class="cam-embed">
             <div class="cam-embed-header">
               <span class="cam-embed-label"><span class="cam-live-dot"></span>CAM-\${String(idx + 1).padStart(2, '0')} // \${cam.label}</span>
               <span class="cam-embed-region">\${cam.region}</span>
             </div>
-            <iframe src="\${embedUrl}" allow="autoplay; encrypted-media" allowfullscreen loading="lazy"></iframe>
+            <iframe id="camIframe\${idx}" src="\${embedUrl}" allow="autoplay; encrypted-media" allowfullscreen loading="lazy"></iframe>
+            <button class="cam-audio-btn" id="camAudioBtn\${idx}" onclick="toggleCamAudio(\${idx})">UNMUTE</button>
             <div class="cam-embed-footer">
               <span class="cam-embed-loc">\${cam.loc}</span>
               <span class="cam-embed-time cam-clock" data-tz="\${cam.id}">--:--:--</span>
@@ -2369,6 +2534,32 @@ export function getHTML() {
       }
       updateClocks();
       camClockTimer = setInterval(updateClocks, 1000);
+    }
+
+    // Audio toggle — uses YouTube IFrame postMessage API
+    function toggleCamAudio(idx) {
+      const iframe = document.getElementById('camIframe' + idx);
+      const btn = document.getElementById('camAudioBtn' + idx);
+      if (!iframe || !iframe.contentWindow) return;
+
+      if (camMuteState[idx] !== false) {
+        // Currently muted — unmute
+        iframe.contentWindow.postMessage(JSON.stringify({
+          event: 'command', func: 'unMute', args: ''
+        }), '*');
+        iframe.contentWindow.postMessage(JSON.stringify({
+          event: 'command', func: 'setVolume', args: [80]
+        }), '*');
+        camMuteState[idx] = false;
+        if (btn) { btn.textContent = 'MUTE'; btn.classList.add('unmuted'); }
+      } else {
+        // Currently unmuted — mute
+        iframe.contentWindow.postMessage(JSON.stringify({
+          event: 'command', func: 'mute', args: ''
+        }), '*');
+        camMuteState[idx] = true;
+        if (btn) { btn.textContent = 'UNMUTE'; btn.classList.remove('unmuted'); }
+      }
     }
 
     async function loadLiveCams() {
